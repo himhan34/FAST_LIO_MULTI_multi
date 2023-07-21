@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8.3)
-project(fast_lio)
+project(fast_lio_multi)
 
 SET(CMAKE_BUILD_TYPE "Debug")
 
@@ -84,6 +84,13 @@ catkin_package(
   INCLUDE_DIRS
 )
 
-add_executable(fastlio_mapping src/laserMapping.cpp include/ikd-Tree/ikd_Tree.cpp src/preprocess.cpp)
-target_link_libraries(fastlio_mapping ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${PYTHON_LIBRARIES})
-target_include_directories(fastlio_mapping PRIVATE ${PYTHON_INCLUDE_DIRS})
+
+
+#### Bundle
+add_executable(${PROJECT_NAME}_bundle src/laserMapping_bundle.cpp include/ikd-Tree/ikd_Tree.cpp src/preprocess_bundle.cpp)
+target_link_libraries(${PROJECT_NAME}_bundle ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${PYTHON_LIBRARIES})
+target_include_directories(${PROJECT_NAME}_bundle PRIVATE ${PYTHON_INCLUDE_DIRS})
+#### Async
+add_executable(${PROJECT_NAME}_async src/laserMapping_async.cpp include/ikd-Tree/ikd_Tree.cpp src/preprocess_async.cpp)
+target_link_libraries(${PROJECT_NAME}_async ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${PYTHON_LIBRARIES})
+target_include_directories(${PROJECT_NAME}_async PRIVATE ${PYTHON_INCLUDE_DIRS})
