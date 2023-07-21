@@ -1,3 +1,8 @@
+# Note:
++ 2023-07-22: The code is not completed yet. But I have one in my local. I will finish upload within 3 days.
+
+<br>
+
 # FAST-LIO-MULTI
 + This repository is an [FAST-LIO2](https://github.com/hku-mars/FAST_LIO)'s extended version of multi-LiDAR
 + Optionally, user can choose one of bundle update method vs asynchronous update method
