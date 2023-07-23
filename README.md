@@ -65,8 +65,8 @@ roslaunch fast_lio_multi run.launch update_method:=async
 	+ Config2: Livox-MID360 x 1EA (0 degree tilted), Livox-AVIA x 1EA (90 degree tilted)
 
 <p align="center">
-  <img src="imgs/config1.png" width="350"/>
-  <img src="imgs/config2.png" width="350"/>
+  <img src="imgs/config1.png" width="300"/>
+  <img src="imgs/config2.png" width="300"/>
   <br>
   <em>Sensor config - (left): config1 (right): config2</em>
 </p>
@@ -74,14 +74,14 @@ roslaunch fast_lio_multi run.launch update_method:=async
 + For aggresive motion and middle-altitude flight situation, asynchronous update method shows better performance
 	+ Green: ground-truth, turquoise: FAST-LIO-MULTI
 <p align="center">
-  <img src="imgs/bundle.png" width="350"/>
-  <img src="imgs/naive.png" width="350"/>
+  <img src="imgs/bundle.png" width="400"/>
+  <img src="imgs/naive.png" width="400"/>
   <br>
   <em>Side view - (left): Bundle (right): Async</em>
 </p>
 <p align="center">
-  <img src="imgs/bundle2.png" width="350"/>
-  <img src="imgs/naive2.png" width="350"/>
+  <img src="imgs/bundle2.png" width="400"/>
+  <img src="imgs/naive2.png" width="400"/>
   <br>
   <em>Top view - (left): Bundle (right): Async</em>
 </p>
@@ -89,14 +89,14 @@ roslaunch fast_lio_multi run.launch update_method:=async
 + For high-altitude flight situation (no many scanned data), bundle update method shows better and robust performance
 	+ Green: ground-truth, turquoise: FAST-LIO-MULTI
 <p align="center">
-  <img src="imgs/bundle_sparse.png" width="350"/>
-  <img src="imgs/naive_sparse.png" width="350"/>
+  <img src="imgs/bundle_sparse.png" width="400"/>
+  <img src="imgs/naive_sparse.png" width="400"/>
   <br>
   <em>Top view - (left): Bundle (right): Async</em>
 </p>
 <p align="center">
-  <img src="imgs/bundle_sparse_side.png" width="350"/>
-  <img src="imgs/naive_sparse_side_.png" width="350"/>
+  <img src="imgs/bundle_sparse_side.png" width="400"/>
+  <img src="imgs/naive_sparse_side.png" width="400"/>
   <br>
   <em>Side view - (left): Bundle (right): Async</em>
 </p>
