@@ -1,8 +1,3 @@
-# Note:
-+ 2023-07-22: The code is not completed yet. But I have one in my local. I will finish upload within 3 days.
-
-<br>
-
 # FAST-LIO-MULTI
 + This repository is an [FAST-LIO2](https://github.com/hku-mars/FAST_LIO)'s extended version of multi-LiDAR
 + Optionally, user can choose one of bundle update method vs asynchronous update method
@@ -40,4 +35,40 @@ roslaunch fast_lio_multi run.launch update_method:=async
 <br>
 
 ## Update methods: bundle vs asynchronous
++ Bundle update: merge multi LiDAR scans into one pointcloud, and then update
+	+ Prevent no scan data input in extreme situation, e.g., high altitude flight of drones
+	+ Longer update interval (which may cause drift during aggresive and fast movement)
+	+ **NOTE: current code implementation will properly work for LiDARs with same scan rates (e.g., same 10Hz)**
++ Asynchronous update: update the filter whenever LiDAR scan inputs
+	+ Shorter update interval
+	+ Depending on the sensor configuration, none-scanned data update may occur
+
+<p align="center">
+  <img src="imgs/bundle_method.png" width="600"/>
+  <img src="imgs/async.png" width="600"/>
+  <br>
+  <em>Update methods - (upper): Bundle (bottm): Asynchronous</em>
+</p>
+
++ By utilizing the forward and backward propagation structure of FAST-LIO2, each update method is implemented as:
+<p align="center">
+  <img src="imgs/updates.png" width="600"/>
+  <br>
+  <em>Update methods - (left): Bundle (right): Asynchronous</em>
+</p>
+
+<br>
+
+## Results of each method
++ For two sensor configurations,
+	+ Config1: Livox-MID360 x 2EA (each is tilted +143, -143 degree)
+	+ Config2: Livox-MID360 x 1EA (0 degree tilted), Livox-AVIA x 1EA (90 degree tilted)
+
+<p align="center">
+  <img src="imgs/config1.png" width="300"/>
+  <img src="imgs/confg2.png" width="300"/>
+  <br>
+  <em>Sensor config - (left): config1 (right): config2</em>
+</p>
+
 + 
