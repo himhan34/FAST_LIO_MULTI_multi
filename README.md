@@ -44,15 +44,15 @@ roslaunch fast_lio_multi run.launch update_method:=async
 	+ Depending on the sensor configuration, none-scanned data update may occur
 
 <p align="center">
-  <img src="imgs/bundle_method.png" width="600"/>
-  <img src="imgs/async.png" width="600"/>
+  <img src="imgs/bundle_method.png" width="800"/>
+  <img src="imgs/async.png" width="800"/>
   <br>
-  <em>Update methods - (upper): Bundle (bottm): Asynchronous</em>
+  <em>Update methods - (upper): Bundle (bottom): Asynchronous</em>
 </p>
 
-+ By utilizing the forward and backward propagation structure of FAST-LIO2, each update method is implemented as:
++ By utilizing the forward and backward propagation structure of FAST-LIO2, each update method is implemented as follows:
 <p align="center">
-  <img src="imgs/updates.png" width="600"/>
+  <img src="imgs/updates.png" width="800"/>
   <br>
   <em>Update methods - (left): Bundle (right): Asynchronous</em>
 </p>
@@ -65,10 +65,38 @@ roslaunch fast_lio_multi run.launch update_method:=async
 	+ Config2: Livox-MID360 x 1EA (0 degree tilted), Livox-AVIA x 1EA (90 degree tilted)
 
 <p align="center">
-  <img src="imgs/config1.png" width="300"/>
-  <img src="imgs/confg2.png" width="300"/>
+  <img src="imgs/config1.png" width="350"/>
+  <img src="imgs/config2.png" width="350"/>
   <br>
   <em>Sensor config - (left): config1 (right): config2</em>
 </p>
 
-+ 
++ For aggresive motion and middle-altitude flight situation, asynchronous update method shows better performance
+	+ Green: ground-truth, turquoise: FAST-LIO-MULTI
+<p align="center">
+  <img src="imgs/bundle.png" width="350"/>
+  <img src="imgs/naive.png" width="350"/>
+  <br>
+  <em>Side view - (left): Bundle (right): Async</em>
+</p>
+<p align="center">
+  <img src="imgs/bundle2.png" width="350"/>
+  <img src="imgs/naive2.png" width="350"/>
+  <br>
+  <em>Top view - (left): Bundle (right): Async</em>
+</p>
+
++ For high-altitude flight situation (no many scanned data), bundle update method shows better and robust performance
+	+ Green: ground-truth, turquoise: FAST-LIO-MULTI
+<p align="center">
+  <img src="imgs/bundle_sparse.png" width="350"/>
+  <img src="imgs/naive_sparse.png" width="350"/>
+  <br>
+  <em>Top view - (left): Bundle (right): Async</em>
+</p>
+<p align="center">
+  <img src="imgs/bundle_sparse_side.png" width="350"/>
+  <img src="imgs/naive_sparse_side_.png" width="350"/>
+  <br>
+  <em>Side view - (left): Bundle (right): Async</em>
+</p>
