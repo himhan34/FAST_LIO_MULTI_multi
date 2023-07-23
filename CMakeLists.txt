@@ -87,10 +87,10 @@ catkin_package(
 
 
 #### Bundle
-add_executable(${PROJECT_NAME}_bundle src/laserMapping_bundle.cpp include/ikd-Tree/ikd_Tree.cpp src/preprocess_bundle.cpp)
+add_executable(${PROJECT_NAME}_bundle src/laserMapping_bundle.cpp include/ikd-Tree/ikd_Tree.cpp src/preprocess.cpp)
 target_link_libraries(${PROJECT_NAME}_bundle ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${PYTHON_LIBRARIES})
 target_include_directories(${PROJECT_NAME}_bundle PRIVATE ${PYTHON_INCLUDE_DIRS})
 #### Async
-add_executable(${PROJECT_NAME}_async src/laserMapping_async.cpp include/ikd-Tree/ikd_Tree.cpp src/preprocess_async.cpp)
+add_executable(${PROJECT_NAME}_async src/laserMapping_async.cpp include/ikd-Tree/ikd_Tree.cpp src/preprocess.cpp)
 target_link_libraries(${PROJECT_NAME}_async ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${PYTHON_LIBRARIES})
 target_include_directories(${PROJECT_NAME}_async PRIVATE ${PYTHON_INCLUDE_DIRS})

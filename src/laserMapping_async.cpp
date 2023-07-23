@@ -32,33 +32,40 @@
 // CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
-#include <omp.h>
+
+/// c++ headers
 #include <mutex>
 #include <math.h>
 #include <thread>
 #include <fstream>
 #include <csignal>
 #include <unistd.h>
+/// module headers
+#include <omp.h>
 #include <Python.h>
 #include <so3_math.h>
-#include <ros/ros.h>
+/// Eigen
 #include <Eigen/Core>
-#include "IMU_Processing_async.hpp"
+/// ros
+#include <ros/ros.h>
 #include <nav_msgs/Odometry.h>
 #include <nav_msgs/Path.h>
 #include <visualization_msgs/Marker.h>
+#include <sensor_msgs/PointCloud2.h>
+#include <tf/transform_datatypes.h>
+#include <tf/transform_broadcaster.h>
+#include <geometry_msgs/Vector3.h>
+#include <livox_ros_driver/CustomMsg.h>
+/// pcl
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 #include <pcl/common/transforms.h> //transformPointCloud
 #include <pcl/filters/voxel_grid.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/io/pcd_io.h>
-#include <sensor_msgs/PointCloud2.h>
-#include <tf/transform_datatypes.h>
-#include <tf/transform_broadcaster.h>
-#include <geometry_msgs/Vector3.h>
-#include <livox_ros_driver/CustomMsg.h>
-#include "preprocess_async.h"
+/// this package
+#include "IMU_Processing.hpp"
+#include "preprocess.h"
 #include <ikd-Tree/ikd_Tree.h>
 
 #define INIT_TIME           (0.1)
@@ -87,10 +94,10 @@ string lid_topic, lid_topic2, imu_topic, map_frame = "map";
 bool multi_lidar = false;
 
 double res_mean_last = 0.05, total_residual = 0.0;
-double last_timestamp_lidar = 0, last_timestamp_imu = -1.0;
+double last_timestamp_lidar = 0, last_timestamp_lidar2 = 0, last_timestamp_imu = -1.0;
 double gyr_cov = 0.1, acc_cov = 0.1, b_gyr_cov = 0.0001, b_acc_cov = 0.0001;
-double filter_size_surf = 0, fov_deg = 0;
-double cube_len = 0, HALF_FOV_COS = 0, FOV_DEG = 0, total_distance = 0, lidar_end_time = 0, first_lidar_time = 0.0;
+double filter_size_surf = 0;
+double cube_len = 0, lidar_end_time = 0, lidar_end_time2 = 0, first_lidar_time = 0.0;
 int    effct_feat_num = 0, time_log_counter = 0, scan_count = 0, publish_count = 0;
 int    iterCount = 0, feats_down_size = 0, NUM_MAX_ITERATIONS = 0, laserCloudValidNum = 0, pcd_save_interval = -1, pcd_index = 0;
 bool   point_selected_surf[100000] = {0};
@@ -105,7 +112,9 @@ vector<double>       extrinR(9, 0.0);
 vector<double>       extrinT2(3, 0.0);
 vector<double>       extrinR2(9, 0.0);
 deque<double>                     time_buffer;
+deque<double>                     time_buffer2;
 deque<PointCloudXYZI::Ptr>        lidar_buffer;
+deque<PointCloudXYZI::Ptr>        lidar_buffer2;
 deque<sensor_msgs::Imu::ConstPtr> imu_buffer;
 
 PointCloudXYZI::Ptr featsFromMap(new PointCloudXYZI());
@@ -291,7 +300,28 @@ void standard_pcl_cbk(const sensor_msgs::PointCloud2::ConstPtr &msg)
     }
 
     PointCloudXYZI::Ptr  ptr(new PointCloudXYZI());
-    p_pre->process(msg, ptr);
+    p_pre->process(msg, ptr, 0);
+    lidar_buffer.push_back(ptr);
+    time_buffer.push_back(msg->header.stamp.toSec());
+    last_timestamp_lidar = msg->header.stamp.toSec();
+    s_plot11[scan_count] = omp_get_wtime() - preprocess_start_time;
+    mtx_buffer.unlock();
+    sig_buffer.notify_all();
+}
+void standard_pcl_cbk2(const sensor_msgs::PointCloud2::ConstPtr &msg) 
+{
+    mtx_buffer.lock();
+    scan_count ++;
+    double preprocess_start_time = omp_get_wtime();
+    if (msg->header.stamp.toSec() < last_timestamp_lidar)
+    {
+        ROS_ERROR("lidar loop back, clear buffer");
+        lidar_buffer.clear();
+    }
+
+    PointCloudXYZI::Ptr  ptr(new PointCloudXYZI());
+    p_pre->process(msg, ptr, 1);
+    ptr->header.seq = 1; //trick
     lidar_buffer.push_back(ptr);
     time_buffer.push_back(msg->header.stamp.toSec());
     last_timestamp_lidar = msg->header.stamp.toSec();
@@ -327,7 +357,41 @@ void livox_pcl_cbk(const livox_ros_driver::CustomMsg::ConstPtr &msg)
     }
 
     PointCloudXYZI::Ptr  ptr(new PointCloudXYZI());
-    p_pre->process(msg, ptr);
+    p_pre->process(msg, ptr, 0);
+    lidar_buffer.push_back(ptr);
+    time_buffer.push_back(last_timestamp_lidar);
+    
+    s_plot11[scan_count] = omp_get_wtime() - preprocess_start_time;
+    mtx_buffer.unlock();
+    sig_buffer.notify_all();
+}
+void livox_pcl_cbk2(const livox_ros_driver::CustomMsg::ConstPtr &msg) 
+{
+    mtx_buffer.lock();
+    double preprocess_start_time = omp_get_wtime();
+    scan_count ++;
+    if (msg->header.stamp.toSec() < last_timestamp_lidar)
+    {
+        ROS_ERROR("lidar loop back, clear buffer");
+        lidar_buffer.clear();
+    }
+    last_timestamp_lidar = msg->header.stamp.toSec();
+    
+    if (!time_sync_en && abs(last_timestamp_imu - last_timestamp_lidar) > 10.0 && !imu_buffer.empty() && !lidar_buffer.empty() )
+    {
+        printf("IMU and LiDAR not Synced, IMU time: %lf, lidar header time: %lf \n",last_timestamp_imu, last_timestamp_lidar);
+    }
+
+    if (time_sync_en && !timediff_set_flg && abs(last_timestamp_lidar - last_timestamp_imu) > 1 && !imu_buffer.empty())
+    {
+        timediff_set_flg = true;
+        timediff_lidar_wrt_imu = last_timestamp_lidar + 0.1 - last_timestamp_imu;
+        printf("Self sync IMU and LiDAR, time diff is %.10lf \n", timediff_lidar_wrt_imu);
+    }
+
+    PointCloudXYZI::Ptr  ptr(new PointCloudXYZI());
+    p_pre->process(msg, ptr, 1);
+    ptr->header.seq = 1; // trick
     lidar_buffer.push_back(ptr);
     time_buffer.push_back(last_timestamp_lidar);
     
@@ -367,7 +431,9 @@ void imu_cbk(const sensor_msgs::Imu::ConstPtr &msg_in)
 }
 
 double lidar_mean_scantime = 0.0;
+double lidar_mean_scantime2 = 0.0;
 int    scan_num = 0;
+int    scan_num2 = 0;
 bool sync_packages(MeasureGroup &meas)
 {
     if (lidar_buffer.empty() || imu_buffer.empty()) {
@@ -379,6 +445,11 @@ bool sync_packages(MeasureGroup &meas)
     {
         meas.lidar = lidar_buffer.front();
         meas.lidar_beg_time = time_buffer.front();
+        if (meas.lidar->header.seq == 1) //trick
+        {
+            pcl::transformPointCloud(*meas.lidar, *meas.lidar, LiDAR2_wrt_LiDAR1);
+        }
+
         if (meas.lidar->points.size() <= 1) // time too little
         {
             lidar_end_time = meas.lidar_beg_time + lidar_mean_scantime;
@@ -472,7 +543,6 @@ void map_incremental()
     kdtree_incremental_time = omp_get_wtime() - st_time;
 }
 
-PointCloudXYZI::Ptr pcl_wait_pub(new PointCloudXYZI(500000, 1));
 PointCloudXYZI::Ptr pcl_wait_save(new PointCloudXYZI());
 void publish_frame_world(const ros::Publisher & pubLaserCloudFull)
 {
@@ -759,7 +829,6 @@ int main(int argc, char** argv)
 
     nh.param<int>("common/max_iteration",NUM_MAX_ITERATIONS,4);
     nh.param<bool>("common/runtime_pos_log_enable", runtime_pos_log, 0);
-    nh.param<bool>("common/feature_extract_enable", p_pre->feature_enabled, false);
     nh.param<bool>("common/multi_lidar", multi_lidar, true);
     nh.param<string>("common/lid_topic",lid_topic,"/livox/lidar");
     nh.param<string>("common/lid_topic2",lid_topic2,"/livox/lidar");
@@ -769,16 +838,21 @@ int main(int argc, char** argv)
     nh.param<double>("common/time_offset_lidar_to_imu", time_diff_lidar_to_imu, 0.0);
 
     nh.param<double>("preprocess/filter_size_surf",filter_size_surf,0.5);
-    nh.param<int>("preprocess/point_filter_num", p_pre->point_filter_num, 2);
-    nh.param<int>("preprocess/lidar_type", p_pre->lidar_type, AVIA);
-    nh.param<int>("preprocess/scan_line", p_pre->N_SCANS, 16);
-    nh.param<int>("preprocess/scan_rate", p_pre->SCAN_RATE, 10);
-    nh.param<int>("preprocess/timestamp_unit", p_pre->time_unit, US);
-    nh.param<double>("preprocess/blind", p_pre->blind, 0.01);
+    nh.param<int>("preprocess/point_filter_num", p_pre->point_filter_num[0], 2);
+    nh.param<int>("preprocess/point_filter_num2", p_pre->point_filter_num[1], 2);
+    nh.param<int>("preprocess/lidar_type", p_pre->lidar_type[0], AVIA);
+    nh.param<int>("preprocess/lidar_type2", p_pre->lidar_type[1], AVIA);
+    nh.param<int>("preprocess/scan_line", p_pre->N_SCANS[0], 16);
+    nh.param<int>("preprocess/scan_line2", p_pre->N_SCANS[1], 16);
+    nh.param<int>("preprocess/scan_rate", p_pre->SCAN_RATE[0], 10);
+    nh.param<int>("preprocess/scan_rate2", p_pre->SCAN_RATE[1], 10);
+    nh.param<int>("preprocess/timestamp_unit", p_pre->time_unit[0], US);
+    nh.param<int>("preprocess/timestamp_unit2", p_pre->time_unit[1], US);
+    nh.param<double>("preprocess/blind", p_pre->blind[0], 0.01);
+    nh.param<double>("preprocess/blind2", p_pre->blind[1], 0.01);
 
     nh.param<double>("mapping/cube_side_length",cube_len,200.0);
     nh.param<float>("mapping/det_range",DET_RANGE,300.f);
-    nh.param<double>("mapping/fov_degree",fov_deg,180);
     nh.param<double>("mapping/gyr_cov",gyr_cov,0.1);
     nh.param<double>("mapping/acc_cov",acc_cov,0.1);
     nh.param<double>("mapping/b_gyr_cov",b_gyr_cov,0.0001);
@@ -795,7 +869,6 @@ int main(int argc, char** argv)
     nh.param<bool>("publish/scan_bodyframe_pub_en",scan_body_pub_en, true);
     nh.param<bool>("pcd_save/pcd_save_en", pcd_save_en, false);
     nh.param<int>("pcd_save/interval", pcd_save_interval, -1);
-    cout<<"p_pre->lidar_type "<<p_pre->lidar_type<<endl;
     
     path.header.stamp    = ros::Time::now();
     path.header.frame_id =map_frame;
@@ -805,9 +878,6 @@ int main(int argc, char** argv)
     double deltaT, deltaR, aver_time_consu = 0, aver_time_icp = 0, aver_time_match = 0, aver_time_incre = 0, aver_time_solve = 0, aver_time_const_H_time = 0;
     bool flg_EKF_converged, EKF_stop_flg = 0;
     
-    FOV_DEG = (fov_deg + 10.0) > 179.9 ? 179.9 : (fov_deg + 10.0);
-    HALF_FOV_COS = cos((FOV_DEG) * 0.5 * PI_M / 180.0);
-
     _featsArray.reset(new PointCloudXYZI());
 
     memset(point_selected_surf, true, sizeof(point_selected_surf));
@@ -836,7 +906,9 @@ int main(int argc, char** argv)
         temp_T1.block<3,1>(0,3) = Lidar_T_wrt_IMU.cast<float>();
         // LiDAR2_wrt_LiDAR1 = temp_T1.inverse() * temp_T2;
         LiDAR2_wrt_LiDAR1 = temp_T1.transpose() * temp_T2;
-        cout << "L2 wrt L1 TF: " << endl << LiDAR2_wrt_LiDAR1 << endl << endl;        
+        cout << "\033[32;1mMulti LiDAR on!" << endl;
+        cout<<"lidar_type[0]: "<<p_pre->lidar_type[0] << ", " <<"lidar_type[1]: "<<p_pre->lidar_type[1] <<endl <<endl;
+        cout << "L2 wrt L1 TF: " << endl << LiDAR2_wrt_LiDAR1 << "\033[0m" << endl << endl;        
     }
 
     double epsi[23] = {0.001};
@@ -858,13 +930,13 @@ int main(int argc, char** argv)
         cout << "~~~~"<<ROOT_DIR<<" doesn't exist" << endl;
 
     /*** ROS subscribe initialization ***/
-    ros::Subscriber sub_pcl = p_pre->lidar_type == AVIA ? \
+    ros::Subscriber sub_pcl = p_pre->lidar_type[0] == AVIA ? \
         nh.subscribe(lid_topic, 200000, livox_pcl_cbk) : \
         nh.subscribe(lid_topic, 200000, standard_pcl_cbk);
     ros::Subscriber sub_pcl2;
     if (multi_lidar)
     {
-        sub_pcl2 = p_pre->lidar_type == AVIA ? \
+        sub_pcl2 = p_pre->lidar_type[1] == AVIA ? \
             nh.subscribe(lid_topic2, 200000, livox_pcl_cbk2) : \
             nh.subscribe(lid_topic2, 200000, standard_pcl_cbk2);
     }
@@ -909,7 +981,7 @@ int main(int argc, char** argv)
             svd_time   = 0;
             t0 = omp_get_wtime();
 
-            p_imu->Process(Measures, kf, feats_undistort);
+            p_imu->Process(Measures, kf, feats_undistort, false); //false
             state_point = kf.get_x();
             pos_lid = state_point.pos + state_point.rot * state_point.offset_T_L_I;
 
