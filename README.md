@@ -71,7 +71,7 @@ roslaunch fast_lio_multi run.launch update_method:=async
   <em>Sensor config - (left): config1 (right): config2</em>
 </p>
 
-+ For aggresive motion and middle-altitude flight situation, asynchronous update method shows better performance
++ For aggresive motion and middle-altitude flight situation with sensor config1, asynchronous update method shows better performance
 	+ Green: ground-truth, turquoise: FAST-LIO-MULTI
 <p align="center">
   <img src="imgs/bundle.png" width="400"/>
@@ -86,7 +86,7 @@ roslaunch fast_lio_multi run.launch update_method:=async
   <em>Top view - (left): Bundle (right): Async</em>
 </p>
 
-+ For high-altitude flight situation (no many scanned data), bundle update method shows better and robust performance
++ For high-altitude flight situation (no many scanned data) with sensor config2, bundle update method shows better and robust performance
 	+ Green: ground-truth, turquoise: FAST-LIO-MULTI
 <p align="center">
   <img src="imgs/bundle_sparse.png" width="400"/>
