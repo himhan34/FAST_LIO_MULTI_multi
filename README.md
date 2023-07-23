@@ -59,7 +59,7 @@ roslaunch fast_lio_multi run.launch update_method:=async
 
 <br>
 
-## Results of each method
+## Results of each method (for better understanding, please see the [related video](#related-video))
 + For two sensor configurations,
 	+ Config1: Livox-MID360 x 2EA (each is tilted +143, -143 degree)
 	+ Config2: Livox-MID360 x 1EA (0 degree tilted), Livox-AVIA x 1EA (90 degree tilted)
