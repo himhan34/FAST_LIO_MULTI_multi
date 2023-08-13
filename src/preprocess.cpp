@@ -22,14 +22,7 @@ Preprocess::Preprocess()
 
 Preprocess::~Preprocess() {}
 
-
-void Preprocess::process(const livox_ros_driver::CustomMsg::ConstPtr &msg, PointCloudXYZI::Ptr &pcl_out, const int &lidar_num)
-{  
-  avia_handler(msg, lidar_num);
-  *pcl_out = pl_surf;
-}
-
-void Preprocess::process(const sensor_msgs::PointCloud2::ConstPtr &msg, PointCloudXYZI::Ptr &pcl_out, const int &lidar_num)
+void Preprocess::set()
 {
   switch (time_unit[lidar_num])
   {
@@ -49,7 +42,17 @@ void Preprocess::process(const sensor_msgs::PointCloud2::ConstPtr &msg, PointClo
       time_unit_scale[lidar_num] = 1.f;
       break;
   }
+  return;
+}
 
+void Preprocess::process(const livox_ros_driver::CustomMsg::ConstPtr &msg, PointCloudXYZI::Ptr &pcl_out, const int &lidar_num)
+{  
+  avia_handler(msg, lidar_num);
+  *pcl_out = pl_surf;
+}
+
+void Preprocess::process(const sensor_msgs::PointCloud2::ConstPtr &msg, PointCloudXYZI::Ptr &pcl_out, const int &lidar_num)
+{
   switch (lidar_type[lidar_num])
   {
   case OUST64:
@@ -183,6 +186,10 @@ void Preprocess::velodyne_handler(const sensor_msgs::PointCloud2::ConstPtr &msg,
 
     for (int i = 0; i < plsize; i++)
     {
+      // if ( (abs(pl_orig.points[i].time) < 1.0 / SCAN_RATE[lidar_num] / 1800) || (abs(pl_orig.points[i].time) > (1.0 / SCAN_RATE[lidar_num]) * 1.1) )
+      // {
+      //   continue;
+      // }
       PointType added_pt;
       // cout<<"!!!!!!"<<i<<" "<<plsize<<endl;
       

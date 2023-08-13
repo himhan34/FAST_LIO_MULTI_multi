@@ -1,7 +1,7 @@
 common:
     runtime_pos_log_enable: false # debug
     async_debug: true             # debugging cout only for asynchrnous update
-    multi_lidar: true
+    multi_lidar: true             # if false, single-LiDAR with the first LiDAR topic, extrinsic
     max_iteration: 3              # max iter of IEKF
     map_frame: "map"              # publish frame, e.g., previous LO/LIO methods used "camera_init", which is super inconvenient.
     lid_topic:  "/forward/livox/lidar_192_168_1_170"

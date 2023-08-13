@@ -86,6 +86,7 @@ class Preprocess
   
   void process(const livox_ros_driver::CustomMsg::ConstPtr &msg, PointCloudXYZI::Ptr &pcl_out, const int &lidar_num);
   void process(const sensor_msgs::PointCloud2::ConstPtr &msg, PointCloudXYZI::Ptr &pcl_out, const int &lidar_num);
+  void set();
 
   PointCloudXYZI pl_full, pl_surf;
   PointCloudXYZI pl_buff[128]; //maximum 128 line lidar

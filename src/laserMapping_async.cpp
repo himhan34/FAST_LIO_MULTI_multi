@@ -853,6 +853,7 @@ int main(int argc, char** argv)
     nh.param<int>("preprocess/timestamp_unit2", p_pre->time_unit[1], US);
     nh.param<double>("preprocess/blind", p_pre->blind[0], 0.01);
     nh.param<double>("preprocess/blind2", p_pre->blind[1], 0.01);
+    p_pre->set();
 
     nh.param<double>("mapping/cube_side_length",cube_len,200.0);
     nh.param<float>("mapping/det_range",DET_RANGE,300.f);

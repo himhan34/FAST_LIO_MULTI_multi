@@ -8,7 +8,6 @@
 #include <ros/ros.h>
 #include <so3_math.h>
 #include <Eigen/Eigen>
-#include <common_lib.h>
 #include <pcl/common/io.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
@@ -22,6 +21,7 @@
 #include <sensor_msgs/Imu.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <geometry_msgs/Vector3.h>
+#include "common_lib.h"
 #include "use-ikfom.hpp"
 
 /// *************Preconfiguration
