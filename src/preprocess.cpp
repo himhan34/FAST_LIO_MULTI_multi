@@ -24,22 +24,40 @@ Preprocess::~Preprocess() {}
 
 void Preprocess::set()
 {
-  switch (time_unit[lidar_num])
+  switch (time_unit[0])
   {
     case SEC:
-      time_unit_scale[lidar_num] = 1.e3f;
+      time_unit_scale[0] = 1.e3f;
       break;
     case MS:
-      time_unit_scale[lidar_num] = 1.f;
+      time_unit_scale[0] = 1.f;
       break;
     case US:
-      time_unit_scale[lidar_num] = 1.e-3f;
+      time_unit_scale[0] = 1.e-3f;
       break;
     case NS:
-      time_unit_scale[lidar_num] = 1.e-6f;
+      time_unit_scale[0] = 1.e-6f;
       break;
     default:
-      time_unit_scale[lidar_num] = 1.f;
+      time_unit_scale[0] = 1.f;
+      break;
+  }
+  switch (time_unit[1])
+  {
+    case SEC:
+      time_unit_scale[1] = 1.e3f;
+      break;
+    case MS:
+      time_unit_scale[1] = 1.f;
+      break;
+    case US:
+      time_unit_scale[1] = 1.e-3f;
+      break;
+    case NS:
+      time_unit_scale[1] = 1.e-6f;
+      break;
+    default:
+      time_unit_scale[1] = 1.f;
       break;
   }
   return;
