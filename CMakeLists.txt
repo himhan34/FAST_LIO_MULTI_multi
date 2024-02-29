@@ -22,23 +22,11 @@ if(CMAKE_SYSTEM_PROCESSOR MATCHES "(x86)|(X86)|(amd64)|(AMD64)" )
   include(ProcessorCount)
   ProcessorCount(N)
   message("Processer number:  ${N}")
-  if(N GREATER 14)
+  if(N GREATER 12)
     add_definitions(-DMP_EN)
-    add_definitions(-DMP_PROC_NUM=11)
-    message("core for MP: 11")
-  elseif(N GREATER 12)
-    add_definitions(-DMP_EN)
-    add_definitions(-DMP_PROC_NUM=10)
-    message("core for MP: 10")
-  elseif(N GREATER 9)
-    add_definitions(-DMP_EN)
-    add_definitions(-DMP_PROC_NUM=7)
-    message("core for MP: 7")
+    add_definitions(-DMP_PROC_NUM=6)
+    message("core for MP: 6")
   elseif(N GREATER 6)
-    add_definitions(-DMP_EN)
-    add_definitions(-DMP_PROC_NUM=5)
-    message("core for MP: 5")
-  elseif(N GREATER 5)
     add_definitions(-DMP_EN)
     add_definitions(-DMP_PROC_NUM=4)
     message("core for MP: 4")
@@ -60,9 +48,6 @@ endif()
 find_package(OpenMP QUIET)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}   ${OpenMP_C_FLAGS}")
-
-find_package(PythonLibs REQUIRED)
-find_path(MATPLOTLIB_CPP_INCLUDE_DIRS "matplotlibcpp.h")
 
 find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
@@ -86,11 +71,10 @@ include_directories(
 	${catkin_INCLUDE_DIRS} 
   ${EIGEN3_INCLUDE_DIR}
   ${PCL_INCLUDE_DIRS}
-  ${PYTHON_INCLUDE_DIRS}
   include)
 
 catkin_package(
-  CATKIN_DEPENDS geometry_msgs nav_msgs roscpp rospy std_msgs
+  CATKIN_DEPENDS geometry_msgs nav_msgs roscpp std_msgs
   DEPENDS EIGEN3 PCL
   INCLUDE_DIRS
 )
@@ -99,9 +83,13 @@ catkin_package(
 
 #### Bundle
 add_executable(${PROJECT_NAME}_bundle src/laserMapping_bundle.cpp include/ikd-Tree/ikd_Tree.cpp src/preprocess.cpp)
-target_link_libraries(${PROJECT_NAME}_bundle ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${PYTHON_LIBRARIES})
-target_include_directories(${PROJECT_NAME}_bundle PRIVATE ${PYTHON_INCLUDE_DIRS})
+target_link_libraries(${PROJECT_NAME}_bundle ${catkin_LIBRARIES} ${PCL_LIBRARIES})
+target_include_directories(${PROJECT_NAME}_bundle PRIVATE)
 #### Async
 add_executable(${PROJECT_NAME}_async src/laserMapping_async.cpp include/ikd-Tree/ikd_Tree.cpp src/preprocess.cpp)
-target_link_libraries(${PROJECT_NAME}_async ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${PYTHON_LIBRARIES})
-target_include_directories(${PROJECT_NAME}_async PRIVATE ${PYTHON_INCLUDE_DIRS})
+target_link_libraries(${PROJECT_NAME}_async ${catkin_LIBRARIES} ${PCL_LIBRARIES})
+target_include_directories(${PROJECT_NAME}_async PRIVATE)
+#### Adaptively mixed
+add_executable(${PROJECT_NAME}_adaptive src/laserMapping_adaptive.cpp include/ikd-Tree/ikd_Tree.cpp src/preprocess.cpp)
+target_link_libraries(${PROJECT_NAME}_adaptive ${catkin_LIBRARIES} ${PCL_LIBRARIES})
+target_include_directories(${PROJECT_NAME}_adaptive PRIVATE)

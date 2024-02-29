@@ -1,6 +1,6 @@
 # FAST-LIO-MULTI
 + This repository is a [FAST-LIO2](https://github.com/hku-mars/FAST_LIO)'s extended version of multi-LiDAR
-+ Optionally, user can choose one of bundle update method vs asynchronous update method
++ Optionally, user can choose one of bundle update method vs asynchronous update vs adaptive update method
 
 ## Related video: https://youtu.be/YQmjKMoBPNU
 
@@ -30,24 +30,29 @@ catkin build -DCMAKE_BUILD_TYPE=Release
 ```shell
 roslaunch fast_lio_multi run.launch update_method:=bundle
 roslaunch fast_lio_multi run.launch update_method:=async
+roslaunch fast_lio_multi run.launch update_method:=adaptive
 ```
 
 <br>
 
-## Update methods: bundle vs asynchronous
+## Update methods: bundle vs asynchronous vs adaptive
 + Bundle update: merge multi LiDAR scans into one pointcloud, and then update
 	+ Prevent no scan data input in extreme situation, e.g., high altitude flight of drones
-	+ Longer update interval (which may cause drift during aggresive and fast movement)
+	+ Longer update interval (which may cause drift during aggresive and fast movement from state propagation with only IMU)
 	+ **NOTE: current code implementation will properly work for LiDARs with same scan rates (e.g., same 10Hz)**
 + Asynchronous update: update the filter whenever LiDAR scan inputs
-	+ Shorter update interval
-	+ Depending on the sensor configuration, none-scanned data update may occur
+	+ Shorter update interval (which may reduce drift from state propagation with only IMU)
+	+ Depending on the sensor configuration, none-scanned data update may occur (which may result in divergence)
++ Adaptive update method
+  + Asynchronous update => bundle update (only when data in FoV is not enough) => asynchronous update
+  + Shorter update interval + preventing no scan data input!
 
 <p align="center">
   <img src="imgs/bundle_method.png" width="800"/>
   <img src="imgs/async.png" width="800"/>
+  <img src="imgs/adaptive.png" width="800"/>
   <br>
-  <em>Update methods - (upper): Bundle (bottom): Asynchronous</em>
+  <em>Update methods - (upper): Bundle, (middle): Asynchronous, (bottom): Adaptive</em>
 </p>
 
 + By utilizing the forward and backward propagation structure of FAST-LIO2, each update method is implemented as follows:
