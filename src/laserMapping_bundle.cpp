@@ -964,17 +964,6 @@ int main(int argc, char** argv)
         if (flg_exit) break;
         ros::spinOnce();
 
-        /*** initialize the map kdtree ***/
-        if(ikdtree.Root_Node == nullptr)
-        {
-            if(!lidar_buffer.empty() && !lidar_buffer.front()->points.empty())
-            {
-                ikdtree.set_downsample_param(filter_size_surf);
-                ikdtree.Add_Points(lidar_buffer.front()->points, true);
-            }
-            continue;
-        }
-
         if(sync_packages(Measures)) 
         {
             if (flg_first_scan)
@@ -1002,6 +991,22 @@ int main(int argc, char** argv)
             downSizeFilterSurf.setInputCloud(feats_undistort);
             downSizeFilterSurf.filter(*feats_down_body);
             feats_down_size = feats_down_body->points.size();
+
+            /*** initialize the map kdtree ***/
+            if(ikdtree.Root_Node == nullptr)
+            {
+                if(feats_down_size > 5)
+                {
+                    ikdtree.set_downsample_param(filter_size_surf);
+                    feats_down_world->resize(feats_down_size);
+                    for (int i = 0; i < feats_down_size; i++)
+                    {
+                        pointBodyToWorld(&(feats_down_body->points[i]), &(feats_down_world->points[i]));
+                    }                    
+                    ikdtree.Add_Points(feats_down_world->points, true);
+                }
+                continue;
+            }
 
             /*** ICP and iterated Kalman filter update ***/
             if (feats_down_size < 5)
