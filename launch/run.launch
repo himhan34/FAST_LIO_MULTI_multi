@@ -9,13 +9,13 @@
 
   <!-- run fast_lio -->
   <group if="$(eval arg ('update_method') == 'bundle')">
-    <node pkg="fast_lio_multi" type="fast_lio_multi_bundle" name="laserMapping_multi" output="screen" /> 
+    <node pkg="fast_lio_multi" type="fast_lio_multi_bundle" name="laserMapping_multi" output="screen"/> 
   </group>
   <group if="$(eval arg ('update_method') == 'async')">
-    <node pkg="fast_lio_multi" type="fast_lio_multi_async" name="laserMapping_multi" output="screen" /> 
+    <node pkg="fast_lio_multi" type="fast_lio_multi_async" name="laserMapping_multi" output="screen"/> 
   </group>
   <group if="$(eval arg ('update_method') == 'adaptive')">
-    <node pkg="fast_lio_multi" type="fast_lio_multi_adaptive" name="laserMapping_multi" output="screen" /> 
+    <node pkg="fast_lio_multi" type="fast_lio_multi_adaptive" name="laserMapping_multi" output="screen"/>
   </group>
 
   <!-- visualize -->
