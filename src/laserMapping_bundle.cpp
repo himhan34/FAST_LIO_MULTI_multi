@@ -35,9 +35,7 @@
 
 /// c++ headers
 #include <mutex>
-#include <math.h>
-#include <thread>
-#include <fstream>
+#include <cmath>
 #include <csignal>
 #include <unistd.h>
 #include <condition_variable>
@@ -68,7 +66,6 @@
 #include "preprocess.h"
 #include <ikd-Tree/ikd_Tree.h>
 
-#define INIT_TIME           (0.1)
 #define LASER_POINT_COV     (0.001)
 
 /**************************/
@@ -89,7 +86,7 @@ double cube_len = 0, lidar_end_time = 0, lidar_end_time2 = 0, first_lidar_time =
 int    effect_feat_num = 0;
 int    feats_down_size = 0, NUM_MAX_ITERATIONS = 0, pcd_save_interval = -1, pcd_index = 0;
 bool   point_selected_surf[100000] = {0};
-bool   lidar_pushed = false, flg_first_scan = true, flg_exit = false, flg_EKF_inited;
+bool   lidar_pushed = false, flg_exit = false;
 bool   scan_pub_en = false, dense_pub_en = false, scan_body_pub_en = false;
 
 vector<BoxPointType> cub_needrm;
@@ -472,7 +469,7 @@ void map_incremental()
         /* transform to world frame */
         pointBodyToWorld(&(feats_down_body->points[i]), &(feats_down_world->points[i]));
         /* decide if need add to map */
-        if (!Nearest_Points[i].empty() && flg_EKF_inited)
+        if (!Nearest_Points[i].empty())
         {
             const PointVector &points_near = Nearest_Points[i];
             bool need_add = true;
@@ -862,8 +859,7 @@ int main(int argc, char** argv)
     memset(point_selected_surf, true, sizeof(point_selected_surf));
     memset(res_last, -1000.0f, sizeof(res_last));
     downSizeFilterSurf.setLeafSize(filter_size_surf, filter_size_surf, filter_size_surf);
-    memset(point_selected_surf, true, sizeof(point_selected_surf));
-    memset(res_last, -1000.0f, sizeof(res_last));
+    ikdtree.set_downsample_param(filter_size_surf);
 
     V3D Lidar_T_wrt_IMU(Zero3d);
     M3D Lidar_R_wrt_IMU(Eye3d);
@@ -946,39 +942,14 @@ int main(int argc, char** argv)
     signal(SIGINT, SigHandle);
     ros::Rate rate(5000);
     bool status = ros::ok();
+    
     while (status)
     {
         if (flg_exit) break;
         ros::spinOnce();
 
-        /*** initialize the map kdtree only once ***/
-        if(ikdtree.Root_Node == nullptr)
-        {
-            if(!lidar_buffer.empty() && !lidar_buffer.front()->empty())
-            {
-                ikdtree.set_downsample_param(filter_size_surf);
-                PointCloudXYZI::Ptr first_scan_world_(new PointCloudXYZI());
-                first_scan_world_->resize(lidar_buffer.front()->points.size());
-
-                for (size_t i = 0; i < lidar_buffer.front()->points.size(); i++)
-                {
-                    pointBodyToWorld(&(lidar_buffer.front()->points[i]), &(first_scan_world_->points[i]));
-                }
-                ikdtree.Add_Points(first_scan_world_->points, true);
-            }
-            continue;
-        }
-
         if(sync_packages(Measures)) 
         {
-            if (flg_first_scan)
-            {
-                first_lidar_time = Measures.lidar_beg_time;
-                p_imu->first_lidar_time = first_lidar_time;
-                flg_first_scan = false;
-                continue;
-            }
-
             p_imu->Process(Measures, kf, feats_undistort, multi_lidar); //multi
             state_point = kf.get_x();
             pos_lid = state_point.pos + state_point.rot * state_point.offset_T_L_I;
@@ -987,7 +958,6 @@ int main(int argc, char** argv)
                 ROS_WARN("No point, skip this scan!\n");
                 continue;
             }
-            flg_EKF_inited = (Measures.lidar_beg_time - first_lidar_time) < INIT_TIME ? false : true;
 
             /*** Segment the map in lidar FOV ***/
             lasermap_fov_segment();
@@ -996,6 +966,21 @@ int main(int argc, char** argv)
             downSizeFilterSurf.setInputCloud(feats_undistort);
             downSizeFilterSurf.filter(*feats_down_body);
             feats_down_size = feats_down_body->points.size();
+
+            /*** initialize the map kdtree ***/
+            if(ikdtree.Root_Node == nullptr)
+            {
+                if(feats_down_size > 5)
+                {
+                    feats_down_world->resize(feats_down_size);
+                    for (int i = 0; i < feats_down_size; i++)
+                    {
+                        pointBodyToWorld(&(feats_down_body->points[i]), &(feats_down_world->points[i]));
+                    }                    
+                    ikdtree.Add_Points(feats_down_world->points, true);
+                }
+                continue;
+            }
 
             /*** ICP and iterated Kalman filter update ***/
             if (feats_down_size < 5)

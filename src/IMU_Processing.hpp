@@ -44,7 +44,6 @@ class ImuProcess
   V3D cov_gyr_scale;
   V3D cov_bias_gyr;
   V3D cov_bias_acc;
-  double first_lidar_time;
 
  private:
   void IMU_init(const MeasureGroup &meas, esekfom::esekf<state_ikfom, 12, input_ikfom> &kf_state, int &N);
@@ -145,7 +144,6 @@ void ImuProcess::IMU_init(const MeasureGroup &meas, esekfom::esekf<state_ikfom, 
     const auto &gyr_acc = meas.imu.front()->angular_velocity;
     mean_acc << imu_acc.x, imu_acc.y, imu_acc.z;
     mean_gyr << gyr_acc.x, gyr_acc.y, gyr_acc.z;
-    first_lidar_time = meas.lidar_beg_time;
   }
 
   for (const auto &imu : meas.imu)
