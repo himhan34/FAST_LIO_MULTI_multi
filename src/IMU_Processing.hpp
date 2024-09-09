@@ -36,7 +36,7 @@ class ImuProcess
   void set_gyr_bias_cov(const V3D &b_g);
   void set_acc_bias_cov(const V3D &b_a);
   Eigen::Matrix<double, 12, 12> Q;
-  void Process(const MeasureGroup &meas,  esekfom::esekf<state_ikfom, 12, input_ikfom> &kf_state, PointCloudXYZI::Ptr pcl_un_, const bool &multi_lidar);
+  void Process(const MeasureGroup &meas,  esekfom::esekf<state_ikfom, 12, input_ikfom> &kf_state, PointCloudXYZI::Ptr pcl_un_, const bool &multi_lidar, int lidar_num = 1);
 
   V3D cov_acc;
   V3D cov_gyr;
@@ -47,7 +47,7 @@ class ImuProcess
 
  private:
   void IMU_init(const MeasureGroup &meas, esekfom::esekf<state_ikfom, 12, input_ikfom> &kf_state, int &N);
-  void UndistortPcl(const MeasureGroup &meas, esekfom::esekf<state_ikfom, 12, input_ikfom> &kf_state, PointCloudXYZI &pcl_in_out);
+  void UndistortPcl(const MeasureGroup &meas, esekfom::esekf<state_ikfom, 12, input_ikfom> &kf_state, PointCloudXYZI &pcl_in_out, int lidar_num = 1);
   void UndistortPclMultiLiDAR(const MeasureGroup &meas, esekfom::esekf<state_ikfom, 12, input_ikfom> &kf_state, PointCloudXYZI &pcl_in_out);
 
   PointCloudXYZI::Ptr cur_pcl_un_;
@@ -184,15 +184,15 @@ void ImuProcess::IMU_init(const MeasureGroup &meas, esekfom::esekf<state_ikfom, 
 
 }
 
-void ImuProcess::UndistortPcl(const MeasureGroup &meas, esekfom::esekf<state_ikfom, 12, input_ikfom> &kf_state, PointCloudXYZI &pcl_out)
+void ImuProcess::UndistortPcl(const MeasureGroup &meas, esekfom::esekf<state_ikfom, 12, input_ikfom> &kf_state, PointCloudXYZI &pcl_out, int lidar_num)
 {
   /*** add the imu of the last frame-tail to the of current frame-head ***/
   auto v_imu = meas.imu;
   v_imu.push_front(last_imu_);
   const double &imu_beg_time = v_imu.front()->header.stamp.toSec();
   const double &imu_end_time = v_imu.back()->header.stamp.toSec();
-  const double &pcl_beg_time = meas.lidar_beg_time;
-  const double &pcl_end_time = meas.lidar_end_time;
+  const double &pcl_beg_time = lidar_num == 1 ? meas.lidar_beg_time : meas.lidar_beg_time2;
+  const double &pcl_end_time = lidar_num == 1 ? meas.lidar_end_time : meas.lidar_end_time2;
   
   /*** sort point clouds by offset time ***/
   pcl_out = *(meas.lidar);
@@ -459,7 +459,7 @@ void ImuProcess::UndistortPclMultiLiDAR(const MeasureGroup &meas, esekfom::esekf
   pcl_out = pcl_1_out + pcl_2_out;
 }
 
-void ImuProcess::Process(const MeasureGroup &meas,  esekfom::esekf<state_ikfom, 12, input_ikfom> &kf_state, PointCloudXYZI::Ptr cur_pcl_un_, const bool &multi_lidar)
+void ImuProcess::Process(const MeasureGroup &meas,  esekfom::esekf<state_ikfom, 12, input_ikfom> &kf_state, PointCloudXYZI::Ptr cur_pcl_un_, const bool &multi_lidar, int lidar_num)
 {
   if(meas.imu.empty()) {return;};
   ROS_ASSERT(meas.lidar != nullptr);
@@ -486,7 +486,7 @@ void ImuProcess::Process(const MeasureGroup &meas,  esekfom::esekf<state_ikfom, 
   }
 
   if (multi_lidar) UndistortPclMultiLiDAR(meas, kf_state, *cur_pcl_un_);
-  else UndistortPcl(meas, kf_state, *cur_pcl_un_);
+  else UndistortPcl(meas, kf_state, *cur_pcl_un_, lidar_num);
   
   // cout<<"[ IMU Process ]: Time: "<<t3 - t1<<endl;
 }

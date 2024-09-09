@@ -4,8 +4,9 @@
 
   <arg name="rviz" default="true" />
   <arg name="update_method" default="bundle" /> <!-- bundle, async, adaptive -->
-
-  <rosparam command="load" file="$(find fast_lio_multi)/config/multi.yaml" />
+  <arg name="config" default="ntu_viral" /> <!-- multi, multi_simulation, ntu_viral, ... -->
+  
+  <rosparam command="load" file="$(find fast_lio_multi)/config/$(arg config).yaml" />
 
   <!-- run fast_lio -->
   <group if="$(eval arg ('update_method') == 'bundle')">
@@ -21,7 +22,7 @@
   <!-- visualize -->
   <group if="$(arg rviz)">
     <node launch-prefix="nice" pkg="rviz" type="rviz" name="rviz" args="-d $(find fast_lio_multi)/rviz.rviz" />
-    <node launch-prefix="nice" pkg="rviz" type="rviz" name="rviz_tf" args="-d $(find fast_lio_multi)/rviz_tf.rviz" />
+    <!-- <node launch-prefix="nice" pkg="rviz" type="rviz" name="rviz_tf" args="-d $(find fast_lio_multi)/rviz_tf.rviz" /> -->
   </group>
 
 

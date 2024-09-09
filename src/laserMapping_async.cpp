@@ -66,6 +66,10 @@
 #include "preprocess.h"
 #include <ikd-Tree/ikd_Tree.h>
 
+#include <chrono>
+#include <std_msgs/Float32.h>
+using namespace std::chrono;
+
 #define LASER_POINT_COV     (0.001)
 
 /**************************/
@@ -133,6 +137,7 @@ double lidar_mean_scantime = 0.0;
 double lidar_mean_scantime2 = 0.0;
 int    scan_num = 0;
 int    scan_num2 = 0;
+Eigen::Vector3d localizability_vec = Eigen::Vector3d::Zero();
 
 
 void SigHandle(int sig)
@@ -666,6 +671,7 @@ void h_share_model(state_ikfom &s, esekfom::dyn_share_datastruct<double> &ekfom_
     }
     
     effect_feat_num = 0;
+    localizability_vec = Eigen::Vector3d::Zero();
     for (int i = 0; i < feats_down_size; i++)
     {
         if (point_selected_surf[i])
@@ -674,8 +680,10 @@ void h_share_model(state_ikfom &s, esekfom::dyn_share_datastruct<double> &ekfom_
             corr_normvect->points[effect_feat_num] = normvec->points[i];
             total_residual += res_last[i];
             effect_feat_num ++;
+            localizability_vec += Eigen::Vector3d(normvec->points[i].x, normvec->points[i].y, normvec->points[i].z).array().square().matrix();
         }
     }
+    localizability_vec = localizability_vec.cwiseSqrt();
 
     if (effect_feat_num < 1)
     {
@@ -870,6 +878,16 @@ int main(int argc, char** argv)
             ("/mavros/vision_pose/pose", 100000);
     ros::Publisher pubPath          = nh.advertise<nav_msgs::Path> 
             ("/path", 100000);
+    ros::Publisher pubCaclTime      = nh.advertise<std_msgs::Float32> 
+            ("/calc_time", 100000);
+    ros::Publisher pubPointNum      = nh.advertise<std_msgs::Float32> 
+            ("/point_number", 100000);
+    ros::Publisher pubLocalizabilityX = nh.advertise<std_msgs::Float32> 
+            ("/localizability_x", 100000);
+    ros::Publisher pubLocalizabilityY = nh.advertise<std_msgs::Float32> 
+            ("/localizability_y", 100000);
+    ros::Publisher pubLocalizabilityZ = nh.advertise<std_msgs::Float32> 
+            ("/localizability_z", 100000);
 //------------------------------------------------------------------------------------------------------
     signal(SIGINT, SigHandle);
     ros::Rate rate(5000);
@@ -882,7 +900,8 @@ int main(int argc, char** argv)
 
         if(sync_packages(Measures)) 
         {
-            p_imu->Process(Measures, kf, feats_undistort, false); //false
+            high_resolution_clock::time_point t1 = high_resolution_clock::now();
+            p_imu->Process(Measures, kf, feats_undistort, false, 1); //false
             state_point = kf.get_x();
             pos_lid = state_point.pos + state_point.rot * state_point.offset_T_L_I;
             if (feats_undistort->empty() || (feats_undistort == NULL))
@@ -977,6 +996,22 @@ int main(int argc, char** argv)
             if (scan_pub_en || pcd_save_en)      publish_frame_world(pubLaserCloudFull, pubLaserCloudFullTransformed);
             if (scan_pub_en && scan_body_pub_en) publish_frame_body(pubLaserCloudFull_body);
             // publish_map(pubLaserCloudMap);
+
+            high_resolution_clock::time_point t2 = high_resolution_clock::now();
+            auto duration = duration_cast<microseconds>( t2 - t1 ).count() / 1000.0;
+            std_msgs::Float32 calc_time;
+            calc_time.data = duration;
+            pubCaclTime.publish(calc_time);
+            std_msgs::Float32 point_num;
+            point_num.data = feats_down_size;
+            pubPointNum.publish(point_num);
+            std_msgs::Float32 localizability_x, localizability_y, localizability_z;
+            localizability_x.data = localizability_vec(0);
+            localizability_y.data = localizability_vec(1);
+            localizability_z.data = localizability_vec(2);
+            pubLocalizabilityX.publish(localizability_x);
+            pubLocalizabilityY.publish(localizability_y);
+            pubLocalizabilityZ.publish(localizability_z);
         }
         status = ros::ok();
         rate.sleep();

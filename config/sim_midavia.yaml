@@ -5,7 +5,6 @@ common:
     max_iteration: 3                # max iter of IEKF
     map_frame: "map"                # publish frame, e.g., previous LO/LIO methods used "camera_init", which is super inconvenient.
     lid_topic:  "/livox/mid360"
-    # lid_topic2:  "/livox/mid360/second"
     lid_topic2:  "/livox/avia"
     imu_topic:  "/mavros/imu/data_raw"
 
@@ -41,16 +40,10 @@ mapping:
     ## Choose between (T, R, T2, R2) OR (T, R, T_L2_wrt_L1, R_L2_wrt_L1)
     extrinsic_imu_to_lidars: true  # true: use (T, R, T2, R2), false: use (T, R, T_L2_wrt_L1, R_L2_wrt_L1)
     extrinsic_T: [ 0.1, 0.0, 0.1 ]
-    # extrinsic_R: [-0.7986355,  0.0000000, 0.6018150, #143
-    #               0, 1, 0,
-    #               -0.6018150,  0.0000000, -0.7986355]
     extrinsic_R: [1.0, 0.0, 0.0, #143
                   0, 1, 0,
                   0.0, 0.0, 1.0]
     extrinsic_T2: [ 0.0, 0.0, -0.1 ]
-    # extrinsic_R2: [-0.7986355, -0.0000000,  -0.6018150, #143
-    #                0, 1, 0,
-    #                0.6018150,  0.0000000, -0.7986355]
     extrinsic_R2: [0.0, 0.0, 1.0,
                    0.0, 1.0, 0.0,
                    -1.0, 0.0, 0.0]

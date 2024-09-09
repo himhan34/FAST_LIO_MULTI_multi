@@ -65,6 +65,9 @@
 #include "IMU_Processing.hpp"
 #include "preprocess.h"
 #include <ikd-Tree/ikd_Tree.h>
+#include <chrono>
+#include <std_msgs/Float32.h>
+using namespace std::chrono;
 
 #define LASER_POINT_COV     (0.001)
 
@@ -133,6 +136,7 @@ double lidar_mean_scantime = 0.0;
 double lidar_mean_scantime2 = 0.0;
 int    scan_num = 0;
 int    scan_num2 = 0;
+Eigen::Vector3d localizability_vec = Eigen::Vector3d::Zero();
 
 
 void SigHandle(int sig)
@@ -338,6 +342,10 @@ bool sync_packages(MeasureGroup &meas)
         if(!lidar_pushed)
         {
             meas.lidar = lidar_buffer.front();
+            for (size_t i = 1; i < lidar_buffer.size(); i++) // merge all lidar scans
+            {
+                *meas.lidar += *lidar_buffer[i];
+            }
             meas.lidar_beg_time = time_buffer.front();
             if (meas.lidar->points.size() <= 1) // time too little
             {
@@ -357,6 +365,10 @@ bool sync_packages(MeasureGroup &meas)
             meas.lidar_end_time = lidar_end_time;
 
             meas.lidar2 = lidar_buffer2.front();
+            for (size_t i = 1; i < lidar_buffer2.size(); i++) // merge all lidar scans
+            {
+                *meas.lidar2 += *lidar_buffer2[i];
+            }
             pcl::transformPointCloud(*meas.lidar2, *meas.lidar2, LiDAR2_wrt_LiDAR1); //lidar2 data to lidar1 frame, not use lidar2-imu tf as state
             meas.lidar_beg_time2 = time_buffer2.front();
             if (meas.lidar2->points.size() <= 1) // time too little
@@ -383,6 +395,25 @@ bool sync_packages(MeasureGroup &meas)
         {
             return false;
         }
+
+        /*** push imu data, and pop from imu buffer ***/
+        double imu_time = imu_buffer.front()->header.stamp.toSec();
+        meas.imu.clear();
+        while ((!imu_buffer.empty()) && (imu_time < lidar_end_time || imu_time < lidar_end_time2))
+        {
+            imu_time = imu_buffer.front()->header.stamp.toSec();
+            if(imu_time > lidar_end_time && imu_time > lidar_end_time2) break;
+            meas.imu.push_back(imu_buffer.front());
+            imu_buffer.pop_front();
+        }
+
+        lidar_buffer.clear();
+        time_buffer.clear();
+        lidar_buffer2.clear();
+        time_buffer2.clear();
+
+        lidar_pushed = false;
+        return true;
     }
     else
     {
@@ -419,24 +450,10 @@ bool sync_packages(MeasureGroup &meas)
         {
             return false;
         }
-    }
 
-
-    /*** push imu data, and pop from imu buffer ***/
-    double imu_time = imu_buffer.front()->header.stamp.toSec();
-    meas.imu.clear();
-    if (multi_lidar)
-    {
-        while ((!imu_buffer.empty()) && (imu_time < lidar_end_time || imu_time < lidar_end_time2))
-        {
-            imu_time = imu_buffer.front()->header.stamp.toSec();
-            if(imu_time > lidar_end_time && imu_time > lidar_end_time2) break;
-            meas.imu.push_back(imu_buffer.front());
-            imu_buffer.pop_front();
-        }
-    }
-    else
-    {
+        /*** push imu data, and pop from imu buffer ***/
+        double imu_time = imu_buffer.front()->header.stamp.toSec();
+        meas.imu.clear();
         while ((!imu_buffer.empty()) && (imu_time < lidar_end_time))
         {
             imu_time = imu_buffer.front()->header.stamp.toSec();
@@ -444,18 +461,13 @@ bool sync_packages(MeasureGroup &meas)
             meas.imu.push_back(imu_buffer.front());
             imu_buffer.pop_front();
         }
-    }
 
-    lidar_buffer.pop_front();
-    time_buffer.pop_front();
+        lidar_buffer.pop_front();
+        time_buffer.pop_front();
 
-    if (multi_lidar)
-    {
-        lidar_buffer2.pop_front();
-        time_buffer2.pop_front();        
+        lidar_pushed = false;
+        return true;        
     }
-    lidar_pushed = false;
-    return true;
 }
 
 void map_incremental()
@@ -734,6 +746,7 @@ void h_share_model(state_ikfom &s, esekfom::dyn_share_datastruct<double> &ekfom_
     }
     
     effect_feat_num = 0;
+    localizability_vec = Eigen::Vector3d::Zero();
     for (int i = 0; i < feats_down_size; i++)
     {
         if (point_selected_surf[i])
@@ -742,8 +755,10 @@ void h_share_model(state_ikfom &s, esekfom::dyn_share_datastruct<double> &ekfom_
             corr_normvect->points[effect_feat_num] = normvec->points[i];
             total_residual += res_last[i];
             effect_feat_num ++;
+            localizability_vec += Eigen::Vector3d(normvec->points[i].x, normvec->points[i].y, normvec->points[i].z).array().square().matrix();
         }
     }
+    localizability_vec = localizability_vec.cwiseSqrt();
 
     if (effect_feat_num < 1)
     {
@@ -938,6 +953,16 @@ int main(int argc, char** argv)
             ("/mavros/vision_pose/pose", 100000);    
     ros::Publisher pubPath          = nh.advertise<nav_msgs::Path> 
             ("/path", 100000);
+    ros::Publisher pubCaclTime      = nh.advertise<std_msgs::Float32> 
+            ("/calc_time", 100000);
+    ros::Publisher pubPointNum      = nh.advertise<std_msgs::Float32> 
+            ("/point_number", 100000);
+    ros::Publisher pubLocalizabilityX = nh.advertise<std_msgs::Float32> 
+            ("/localizability_x", 100000);
+    ros::Publisher pubLocalizabilityY = nh.advertise<std_msgs::Float32> 
+            ("/localizability_y", 100000);
+    ros::Publisher pubLocalizabilityZ = nh.advertise<std_msgs::Float32> 
+            ("/localizability_z", 100000);
 //------------------------------------------------------------------------------------------------------
     signal(SIGINT, SigHandle);
     ros::Rate rate(5000);
@@ -950,6 +975,7 @@ int main(int argc, char** argv)
 
         if(sync_packages(Measures)) 
         {
+            high_resolution_clock::time_point t1 = high_resolution_clock::now();
             p_imu->Process(Measures, kf, feats_undistort, multi_lidar); //multi
             state_point = kf.get_x();
             pos_lid = state_point.pos + state_point.rot * state_point.offset_T_L_I;
@@ -1021,6 +1047,21 @@ int main(int argc, char** argv)
             if (scan_pub_en || pcd_save_en)      publish_frame_world(pubLaserCloudFull, pubLaserCloudFullTransformed);
             if (scan_pub_en && scan_body_pub_en) publish_frame_body(pubLaserCloudFull_body);
             // publish_map(pubLaserCloudMap);
+            high_resolution_clock::time_point t2 = high_resolution_clock::now();
+            auto duration = duration_cast<microseconds>( t2 - t1 ).count() / 1000.0;
+            std_msgs::Float32 calc_time;
+            calc_time.data = duration;
+            pubCaclTime.publish(calc_time);
+            std_msgs::Float32 point_num;
+            point_num.data = feats_down_size;
+            pubPointNum.publish(point_num);
+            std_msgs::Float32 localizability_x, localizability_y, localizability_z;
+            localizability_x.data = localizability_vec(0);
+            localizability_y.data = localizability_vec(1);
+            localizability_z.data = localizability_vec(2);
+            pubLocalizabilityX.publish(localizability_x);
+            pubLocalizabilityY.publish(localizability_y);
+            pubLocalizabilityZ.publish(localizability_z);
         }
         status = ros::ok();
         rate.sleep();
