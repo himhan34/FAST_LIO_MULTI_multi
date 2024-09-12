@@ -77,6 +77,8 @@ target_link_libraries(${PROJECT_NAME}_ikd_preprocess ${catkin_LIBRARIES} ${PCL_L
 #### Bundle
 add_executable(${PROJECT_NAME}_bundle src/laserMapping_bundle.cpp)
 target_link_libraries(${PROJECT_NAME}_bundle ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${PROJECT_NAME}_ikd_preprocess)
+add_executable(${PROJECT_NAME}_wrong_bundle src/laserMapping_wrong_bundle.cpp)
+target_link_libraries(${PROJECT_NAME}_wrong_bundle ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${PROJECT_NAME}_ikd_preprocess)
 #### Async
 add_executable(${PROJECT_NAME}_async src/laserMapping_async.cpp)
 target_link_libraries(${PROJECT_NAME}_async ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${PROJECT_NAME}_ikd_preprocess)
