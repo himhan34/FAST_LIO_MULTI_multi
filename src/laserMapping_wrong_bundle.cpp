@@ -399,14 +399,10 @@ bool sync_packages(MeasureGroup &meas)
             imu_buffer.pop_front();
         }
 
-        // lidar_buffer.pop_front();
-        // time_buffer.pop_front();
-        // lidar_buffer2.pop_front();
-        // time_buffer2.pop_front();
-        lidar_buffer.clear();
-        time_buffer.clear();
-        lidar_buffer2.clear();
-        time_buffer2.clear();
+        lidar_buffer.pop_front();
+        time_buffer.pop_front();
+        lidar_buffer2.pop_front();
+        time_buffer2.pop_front();
 
         lidar_pushed = false;
         return true;
