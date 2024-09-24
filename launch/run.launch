@@ -4,7 +4,7 @@
 
   <arg name="rviz" default="true" />
   <arg name="update_method" default="bundle" /> <!-- bundle, async, adaptive, wrong_bundle -->
-  <arg name="config" default="hilti2021" /> <!-- multi, multi_simulation, ntu_viral, hilti2021 ... -->
+  <arg name="config" default="multi" /> <!-- multi, multi_simulation, ntu_viral, hilti2021 ... -->
   
   <rosparam command="load" file="$(find fast_lio_multi)/config/$(arg config).yaml" />
 

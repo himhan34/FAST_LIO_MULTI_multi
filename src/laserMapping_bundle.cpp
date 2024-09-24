@@ -511,6 +511,7 @@ void map_incremental()
             PointToAdd.push_back(feats_down_world->points[i]);
         }
     }
+    ikdtree.Add_Points(PointToAdd, true);
     ikdtree.Add_Points(PointNoNeedDownsample, false); 
     return;
 }
