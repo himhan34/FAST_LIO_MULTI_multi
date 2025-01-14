@@ -1171,6 +1171,12 @@ void h_share_model(state_ikfom &s, esekfom::dyn_share_datastruct<double> &ekfom_
         auto &points_near = Nearest_Points[i];  // 근접 포인트들 저장
 
         if (ekfom_data.converge)  // EKF 데이터가 수렴한 경우
+            // 항상 보면 EKF 방법이 Converge 하는 문제 때문에 날아가버리는 문제가 많았음. 
+            // 그래서 이거 해결할 방법을 찾아야 할 것 같긴함. 
+            // 결론적으로는 .. 해결해야 하는 문제.. 
+            //여기에 나오는 ekf 방법 자체도 내가 기억하기로는 
+            //ikfom이라는 패키지 써서 manifold에서 하는 걸로 아는데, 곡면이 선형화 되어서 이게 발산하는건가?
+            // 이거 한번 해결해보자.
         {
             /** 맵에서 가장 가까운 표면 찾기 **/
             ikdtree.Nearest_Search(point_world, NUM_MATCH_POINTS, points_near, pointSearchSqDis);  // KD-트리 검색
@@ -1210,6 +1216,12 @@ void h_share_model(state_ikfom &s, esekfom::dyn_share_datastruct<double> &ekfom_
             total_residual += res_last[i];  // 총 잔차 계산
             effect_feat_num++;  // 유효한 특징점 수 증가
             localizability_vec += Eigen::Vector3d(normvec->points[i].x, normvec->points[i].y, normvec->points[i].z).array().square().matrix();  // 지역화 가능성 계산
+            // 여기서 사용하는 localizability는 맵 데이터 자체가 실제로 slam에서 localization에 사용하기에 적합한가? 라는 measure 값 같은 느낌임.
+            // 기억하기로는 xicp에서 사용한 measure로 알고 있는데, xicp 자체가 최적화를 여러번해서, local이랑 global 둘다해서 최적화 했던 기억이 있는데, 
+            // 그렇게 해도 터널 같은 환경에서 잘 되긴하나, 그렇게 최적화하기에는 어렵다는 생각이 든다. 
+            // 그리고 코드도 localizability 관련된 xicp 도 코드 공개 안되었던 거 같아서.. 
+            // 지금은 만들어 주신 이 코드에서, localizability를 가지고 measure 로 하면 좋을 것 같음. 
+            
         }
     }
     localizability_vec = localizability_vec.cwiseSqrt();  // 지역화 가능성의 제곱근 계산
@@ -1220,7 +1232,7 @@ void h_share_model(state_ikfom &s, esekfom::dyn_share_datastruct<double> &ekfom_
         ROS_WARN("No Effective Points! \n");  // 경고 메시지 출력
         return;
     }
-
+    
     res_mean_last = total_residual / effect_feat_num;  // 평균 잔차 계산
         
     /*** 측정 자코비안 행렬 H와 측정 벡터 계산 ***/
@@ -1313,6 +1325,8 @@ localizability는 로봇이 주변 환경에서 자신의 위치를 얼마나 �
    - **정보 이득 기반 탐색**: 로봇이 환경을 탐색할 때 localizability가 높은 지역을 우선적으로 탐색하여 정보 이득을 극대화하는 방식.
    - **경로 계획 최적화**: localizability를 고려한 경로 계획을 통해, 로봇이 위치 추정에 필요한 정보를 충분히 얻을 수 있는 경로를 우선적으로 탐색함으로써 성능을 최적화합니다.
    - **위치 정확도 평가**: localizability를 기반으로 로봇이 위치 추정이 어려운 환경을 인식하고, 경로를 수정하거나 보정하여 안정적인 위치 추정을 할 수 있습니다.
+   // 지금 생각해보면 localizability 를 보면 information theory를 적용할 수 있을 것 같긴함. 
+   // 여기서 보면 information theory와 localizability를 섞어야 하지 않나 싶음. 
 
 9. **결론**
    localizability를 SLAM 성능 최적화에 적용하는 것은 매우 유용한 전략입니다. SLAM에서 핵심은 로봇이 환경에서 자신의 위치를 얼마나 정확하게 추정하고 이를 통해 맵을 생성할 수 있는가에 있습니다. localizability는 로봇이 주변에서 얻는 정보의 양과 질을 수치화하는 도구로, 이를 통해 SLAM 알고리즘이 더욱 효율적으로 작동할 수 있습니다.
@@ -1392,9 +1406,7 @@ int main(int argc, char** argv)
     nh.param<bool>("pcd_save/pcd_save_en", pcd_save_en, false);  // PCD 저장 활성화 여부
     nh.param<int>("pcd_save/interval", pcd_save_interval, -1);  // PCD 저장 간격 설정
 
-
-
-
+    
     /*** 변수 초기화 ***/
     path.header.stamp = ros::Time::now();  // 현재 시간을 경로 메시지의 헤더에 설정
     path.header.frame_id = map_frame;  // 경로 메시지의 프레임 ID를 맵 프레임으로 설정
@@ -1454,6 +1466,7 @@ int main(int argc, char** argv)
     kf.init_dyn_share(get_f, df_dx, df_dw, h_share_model, NUM_MAX_ITERATIONS, epsi);  // Kalman 필터 초기화
 
     /*** ROS 구독자 초기화 ***/
+    // 무조건 여러가지 센서로 실험해 볼것. 
     ros::Subscriber sub_pcl = p_pre->lidar_type[0] == AVIA ? \
         nh.subscribe(lid_topic, 200000, livox_pcl_cbk) : \
         nh.subscribe(lid_topic, 200000, standard_pcl_cbk);  // 첫 번째 LiDAR 데이터 구독 설정
@@ -1498,6 +1511,7 @@ int main(int argc, char** argv)
     ros::Publisher pubMavrosVisionPose = nh.advertise<geometry_msgs::PoseStamped> 
             ("/mavros/vision_pose/pose", 100000);    
     // MAVROS 패키지를 사용하여 로봇의 비전 기반 자세 정보를 퍼블리싱.
+    // 아마 코드 작성자 분이 드론하시는 분이여서 mavros 자체로 한 것 같음. 
     // "/mavros/vision_pose/pose" 토픽에 PoseStamped 메시지로 퍼블리싱.
 
     ros::Publisher pubPath = nh.advertise<nav_msgs::Path> 
@@ -1563,6 +1577,7 @@ int main(int argc, char** argv)
             high_resolution_clock::time_point t1 = high_resolution_clock::now();
 
             // 번들 모드에 따라 IMU와 LiDAR 데이터를 처리
+            // 아직 이해가 안되는 거는 imu와 lidar 2대가 매핑이 잘 되는가!? 임. 
             if (bundle_enabled) 
                 p_imu->Process(Measures, kf, feats_undistort, multi_lidar);  // 번들 처리
             else 
@@ -1589,13 +1604,13 @@ int main(int argc, char** argv)
             downSizeFilterSurf.filter(*feats_down_body);
             feats_down_size = feats_down_body->points.size();  // 다운샘플링된 포인트 수 가져오기
 
-            /*** 처음 스캔일 경우 맵 kdtree 초기화 ***/
+            /*** 처음 스캔일 경우 맵 ikdtree 초기화 ***/
             if (multi_lidar)
             {
-                // kdtree가 초기화되지 않았거나 LiDAR 데이터가 준비되지 않은 경우 초기화
+                // ikdtree가 초기화되지 않았거나 LiDAR 데이터가 준비되지 않은 경우 초기화
                 if(ikdtree.Root_Node == nullptr || !lidar1_ikd_init || !lidar2_ikd_init)
                 {
-                    // kdtree를 초기화하기에 충분한 특징 포인트가 있는지 확인
+                    // ikdtree를 초기화하기에 충분한 특징 포인트가 있는지 확인
                     if(feats_down_size > 5)
                     {
                         // 포인트를 바디 프레임에서 월드 프레임으로 변환
@@ -1604,7 +1619,7 @@ int main(int argc, char** argv)
                         {
                             pointBodyToWorld(&(feats_down_body->points[i]), &(feats_down_world->points[i]));
                         }                    
-                        // 월드 프레임 포인트를 kdtree에 추가
+                        // 월드 프레임 포인트를 ikdtree에 추가
                         ikdtree.Add_Points(feats_down_world->points, true);
                         
                         // LiDAR를 초기화된 것으로 표시
@@ -1662,7 +1677,7 @@ int main(int argc, char** argv)
     if (publish_tf_results) publish_visionpose(pubMavrosVisionPose);  // vision pose 퍼블리시
     publish_odometry(pubOdomAftMapped);  // odometry 퍼블리시
 
-    /*** 특징 포인트를 kdtree에 추가 ***/
+    /*** 특징 포인트를 ikdtree에 추가 ***/
     map_incremental();  // 맵에 점을 추가하고 업데이트
 
     if(0)  // 맵 포인트를 확인해야 할 경우, 0을 1로 변경
