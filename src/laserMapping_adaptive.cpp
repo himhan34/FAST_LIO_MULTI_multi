@@ -844,6 +844,7 @@ bool sync_packages_bundle(MeasureGroup &meas)
         }
 
         /*** IMU 데이터를 푸시하고 IMU 버퍼에서 제거 ***/
+        // 여기서 궁금한 거는, 왜 푸시하고, 제거하는거지/... 이해가 안되네.
         double imu_time = imu_buffer.front()->header.stamp.toSec();  // 첫 번째 IMU 타임스탬프 가져오기
         meas.imu.clear();  // 측정 그룹의 IMU 데이터를 초기화
         while ((!imu_buffer.empty()) && (imu_time < lidar_end_time || imu_time < lidar_end_time2))  // IMU 데이터가 LiDAR 종료 시간보다 작으면
