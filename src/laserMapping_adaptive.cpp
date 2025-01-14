@@ -361,7 +361,7 @@ void imu_cbk(const sensor_msgs::Imu::ConstPtr &msg_in)
     imu_buffer.push_back(msg);  // IMU 데이터를 버퍼에 추가
     mtx_buffer.unlock();  // 락 해제
     sig_buffer.notify_all();  // 조건 변수에 신호 보내기
-    //IMU 자체가 왜 이렇게 1개 밖에 없는지 이해가 안되긴함. 
+    //IMU는 time sync  맞출 때, 사용하는 것으로 보임.
 }
 
 bool sync_packages_async(MeasureGroup &meas)
@@ -511,256 +511,271 @@ bool sync_packages_async(MeasureGroup &meas)
 
 
 
-
 bool sync_packages_bundle(MeasureGroup &meas)
 {
-    if (multi_lidar)
+    if (multi_lidar) // 멀티 라이다 모드인지 확인합니다.
     {
-        if (lidar_buffer.empty() || lidar_buffer2.empty() || imu_buffer.empty()) {
-            return false;
+        if (lidar_buffer.empty() || lidar_buffer2.empty() || imu_buffer.empty()) { // 두 라이다 버퍼 또는 IMU 버퍼가 비어있는지 확인합니다.
+            return false; // 버퍼가 비어 있으면 false를 반환합니다.
         }
-        /*** push a lidar scan ***/
-        if(!lidar_pushed)
+        /*** push a lidar scan ***/ // 라이다 스캔 데이터를 처리합니다.
+        if(!lidar_pushed) // 라이다 데이터가 처리되지 않았는지 확인합니다.
         {
-            meas.lidar = lidar_buffer.front();
-            for (size_t i = 1; i < lidar_buffer.size(); i++) // merge all lidar scans
+            meas.lidar = lidar_buffer.front(); // 첫 번째 라이다 데이터를 가져옵니다.
+            for (size_t i = 1; i < lidar_buffer.size(); i++) // 모든 라이다 스캔 데이터를 병합합니다.
             {
-                *meas.lidar += *lidar_buffer[i];
+                *meas.lidar += *lidar_buffer[i]; // 라이다 데이터를 누적합니다.
             }
-            meas.lidar_beg_time = time_buffer.front();
-            if (meas.lidar->points.size() <= 1) // time too little
+            meas.lidar_beg_time = time_buffer.front(); // 라이다 데이터 시작 시간을 저장합니다.
+            if (meas.lidar->points.size() <= 1) // 라이다 포인트가 너무 적으면
             {
-                lidar_end_time = meas.lidar_beg_time + lidar_mean_scantime;
-                ROS_WARN("Too few input point cloud!\n");
+                lidar_end_time = meas.lidar_beg_time + lidar_mean_scantime; // 기본 스캔 시간을 더합니다.
+                ROS_WARN("Too few input point cloud!\n"); // 경고 메시지를 출력합니다.
             }
-            else if (meas.lidar->points.back().curvature / double(1000) < 0.5 * lidar_mean_scantime)
+            else if (meas.lidar->points.back().curvature / double(1000) < 0.5 * lidar_mean_scantime) // 마지막 포인트의 곡률이 평균 시간보다 작은 경우
             {
-                lidar_end_time = meas.lidar_beg_time + lidar_mean_scantime;
+                lidar_end_time = meas.lidar_beg_time + lidar_mean_scantime; // 기본 스캔 시간을 설정합니다.
             }
             else
             {
-                scan_num ++;
-                lidar_end_time = meas.lidar_beg_time + meas.lidar->points.back().curvature / double(1000);
-                lidar_mean_scantime += (meas.lidar->points.back().curvature / double(1000) - lidar_mean_scantime) / scan_num;
+                scan_num ++; // 스캔 횟수를 증가시킵니다.
+                lidar_end_time = meas.lidar_beg_time + meas.lidar->points.back().curvature / double(1000); // 종료 시간을 계산합니다.
+                lidar_mean_scantime += (meas.lidar->points.back().curvature / double(1000) - lidar_mean_scantime) / scan_num; // 평균 스캔 시간을 업데이트합니다.
             }
-            meas.lidar_end_time = lidar_end_time;
+            meas.lidar_end_time = lidar_end_time; // 라이다 데이터 종료 시간을 설정합니다.
 
-            meas.lidar2 = lidar_buffer2.front();
-            for (size_t i = 1; i < lidar_buffer2.size(); i++) // merge all lidar scans
+            meas.lidar2 = lidar_buffer2.front(); // 두 번째 라이다 데이터를 가져옵니다.
+            for (size_t i = 1; i < lidar_buffer2.size(); i++) // 모든 두 번째 라이다 데이터를 병합합니다.
             {
-                *meas.lidar2 += *lidar_buffer2[i];
+                *meas.lidar2 += *lidar_buffer2[i]; // 데이터를 누적합니다.
             }
-            pcl::transformPointCloud(*meas.lidar2, *meas.lidar2, LiDAR2_wrt_LiDAR1); //lidar2 data to lidar1 frame, not use lidar2-imu tf as state
-            meas.lidar_beg_time2 = time_buffer2.front();
-            if (meas.lidar2->points.size() <= 1) // time too little
+            pcl::transformPointCloud(*meas.lidar2, *meas.lidar2, LiDAR2_wrt_LiDAR1); // 두 번째 라이다 데이터를 첫 번째 라이다 프레임으로 변환합니다.
+            meas.lidar_beg_time2 = time_buffer2.front(); // 두 번째 라이다 데이터 시작 시간을 설정합니다.
+            if (meas.lidar2->points.size() <= 1) // 포인트가 너무 적으면
             {
-                lidar_end_time2 = meas.lidar_beg_time2 + lidar_mean_scantime2;
-                ROS_WARN("Too few input point cloud!\n");
+                lidar_end_time2 = meas.lidar_beg_time2 + lidar_mean_scantime2; // 기본 스캔 시간을 설정합니다.
+                ROS_WARN("Too few input point cloud!\n"); // 경고 메시지를 출력합니다.
             }
-            else if (meas.lidar2->points.back().curvature / double(1000) < 0.5 * lidar_mean_scantime2)
+            else if (meas.lidar2->points.back().curvature / double(1000) < 0.5 * lidar_mean_scantime2) // 마지막 곡률이 너무 작은 경우
             {
-                lidar_end_time2 = meas.lidar_beg_time2 + lidar_mean_scantime2;
+                lidar_end_time2 = meas.lidar_beg_time2 + lidar_mean_scantime2; // 종료 시간을 설정합니다.
             }
             else
             {
-                scan_num2 ++;
-                lidar_end_time2 = meas.lidar_beg_time2 + meas.lidar2->points.back().curvature / double(1000);
-                lidar_mean_scantime2 += (meas.lidar2->points.back().curvature / double(1000) - lidar_mean_scantime2) / scan_num2;
+                scan_num2 ++; // 스캔 횟수를 증가시킵니다.
+                lidar_end_time2 = meas.lidar_beg_time2 + meas.lidar2->points.back().curvature / double(1000); // 종료 시간을 계산합니다.
+                lidar_mean_scantime2 += (meas.lidar2->points.back().curvature / double(1000) - lidar_mean_scantime2) / scan_num2; // 평균 스캔 시간을 업데이트합니다.
             }
-            meas.lidar_end_time2 = lidar_end_time2;
+            meas.lidar_end_time2 = lidar_end_time2; // 두 번째 라이다 종료 시간을 설정합니다.
 
-            publish_lidar_time = max(lidar_end_time, lidar_end_time2);
-            lidar_pushed = true;
+            publish_lidar_time = max(lidar_end_time, lidar_end_time2); // 두 라이다 중 더 늦은 종료 시간을 사용합니다.
+            lidar_pushed = true; // 라이다 데이터가 처리되었음을 표시합니다.
         }
 
-        if (last_timestamp_imu < lidar_end_time || last_timestamp_imu < lidar_end_time2)
+        if (last_timestamp_imu < lidar_end_time || last_timestamp_imu < lidar_end_time2) // IMU 데이터가 라이다 종료 시간보다 오래된 경우
         {
-            return false;
+            return false; // 데이터를 처리하지 않고 반환합니다.
         }
 
-        /*** push imu data, and pop from imu buffer ***/
-        double imu_time = imu_buffer.front()->header.stamp.toSec();
-        meas.imu.clear();
-        while ((!imu_buffer.empty()) && (imu_time < lidar_end_time || imu_time < lidar_end_time2))
+        /*** push imu data, and pop from imu buffer ***/ // IMU 데이터를 추가하고 제거합니다.
+        double imu_time = imu_buffer.front()->header.stamp.toSec(); // 첫 번째 IMU 데이터의 타임스탬프를 가져옵니다.
+        meas.imu.clear(); // IMU 데이터를 초기화합니다.
+        while ((!imu_buffer.empty()) && (imu_time < lidar_end_time || imu_time < lidar_end_time2)) // 라이다 종료 시간 이전까지 IMU 데이터를 처리합니다.
         {
-            imu_time = imu_buffer.front()->header.stamp.toSec();
-            if(imu_time > lidar_end_time && imu_time > lidar_end_time2) break;
-            meas.imu.push_back(imu_buffer.front());
-            imu_buffer.pop_front();
+            imu_time = imu_buffer.front()->header.stamp.toSec(); // 현재 IMU 타임스탬프를 가져옵니다.
+            if(imu_time > lidar_end_time && imu_time > lidar_end_time2) break; // 종료 시간을 초과하면 중단합니다.
+            meas.imu.push_back(imu_buffer.front()); // IMU 데이터를 추가합니다.
+            imu_buffer.pop_front(); // 사용한 IMU 데이터를 제거합니다.
         }
 
-        lidar_buffer.clear();
-        time_buffer.clear();
-        lidar_buffer2.clear();
-        time_buffer2.clear();
+        lidar_buffer.clear(); // 라이다 데이터를 초기화합니다.
+        time_buffer.clear(); // 타임 데이터를 초기화합니다.
+        lidar_buffer2.clear(); // 두 번째 라이다 데이터를 초기화합니다.
+        time_buffer2.clear(); // 두 번째 타임 데이터를 초기화합니다.
 
-        lidar_pushed = false;
-        cout << "\033[36;1mBundle update!\033[0m" << endl;
-        return true;
+        lidar_pushed = false; // 라이다 처리 완료 플래그를 초기화합니다.
+        cout << "\033[36;1mBundle update!\033[0m" << endl; // 처리 완료 메시지를 출력합니다.
+        return true; // 처리가 성공적으로 완료되었음을 반환합니다.
     }
-    else
-    {
-        if (lidar_buffer.empty() || imu_buffer.empty()) {
-            return false;
-        }
-        /*** push a lidar scan ***/
-        if(!lidar_pushed)
-        {
-            meas.lidar = lidar_buffer.front();
-            meas.lidar_beg_time = time_buffer.front();
-            if (meas.lidar->points.size() <= 1) // time too little
-            {
-                lidar_end_time = meas.lidar_beg_time + lidar_mean_scantime;
-                ROS_WARN("Too few input point cloud!\n");
-            }
-            else if (meas.lidar->points.back().curvature / double(1000) < 0.5 * lidar_mean_scantime)
-            {
-                lidar_end_time = meas.lidar_beg_time + lidar_mean_scantime;
-            }
-            else
-            {
-                scan_num ++;
-                lidar_end_time = meas.lidar_beg_time + meas.lidar->points.back().curvature / double(1000);
-                lidar_mean_scantime += (meas.lidar->points.back().curvature / double(1000) - lidar_mean_scantime) / scan_num;
-            }
-
-            meas.lidar_end_time = lidar_end_time;
-            publish_lidar_time = lidar_end_time;
-            lidar_pushed = true;
-        }
-
-        if (last_timestamp_imu < lidar_end_time)
-        {
-            return false;
-        }
-
-        /*** push imu data, and pop from imu buffer ***/
-        double imu_time = imu_buffer.front()->header.stamp.toSec();
-        meas.imu.clear();
-        while ((!imu_buffer.empty()) && (imu_time < lidar_end_time))
-        {
-            imu_time = imu_buffer.front()->header.stamp.toSec();
-            if(imu_time > lidar_end_time) break;
-            meas.imu.push_back(imu_buffer.front());
-            imu_buffer.pop_front();
-        }
-
-        lidar_buffer.pop_front();
-        time_buffer.pop_front();
-
-        lidar_pushed = false;
-        return true;     
-    }
-}
-
-void map_incremental()
+    else // 멀티 라이다 모드가 아닌 경우
 {
-    PointVector PointToAdd;
-    PointVector PointNoNeedDownsample;
-    PointToAdd.reserve(feats_down_size);
-    PointNoNeedDownsample.reserve(feats_down_size);
-    for (int i = 0; i < feats_down_size; i++)
+    if (lidar_buffer.empty() || imu_buffer.empty()) { // 라이다 버퍼 또는 IMU 버퍼가 비어있는지 확인합니다.
+        return false; // 비어 있으면 false를 반환합니다.
+    }
+    /*** push a lidar scan ***/ // 라이다 스캔 데이터를 처리합니다.
+    if(!lidar_pushed) // 라이다 데이터가 처리되지 않았는지 확인합니다.
     {
-        /* transform to world frame */
-        pointBodyToWorld(&(feats_down_body->points[i]), &(feats_down_world->points[i]));
-        /* decide if need add to map */
-        if (!Nearest_Points[i].empty())
+        meas.lidar = lidar_buffer.front(); // 첫 번째 라이다 데이터를 가져옵니다.
+        meas.lidar_beg_time = time_buffer.front(); // 라이다 데이터의 시작 시간을 설정합니다.
+        if (meas.lidar->points.size() <= 1) // 라이다 포인트가 너무 적은 경우
         {
-            const PointVector &points_near = Nearest_Points[i];
-            bool need_add = true;
-            BoxPointType Box_of_Point;
-            PointType downsample_result, mid_point; 
-            mid_point.x = floor(feats_down_world->points[i].x/filter_size_surf)*filter_size_surf + 0.5 * filter_size_surf;
-            mid_point.y = floor(feats_down_world->points[i].y/filter_size_surf)*filter_size_surf + 0.5 * filter_size_surf;
-            mid_point.z = floor(feats_down_world->points[i].z/filter_size_surf)*filter_size_surf + 0.5 * filter_size_surf;
-            float dist  = calc_dist(feats_down_world->points[i],mid_point);
-            if (fabs(points_near[0].x - mid_point.x) > 0.5 * filter_size_surf && fabs(points_near[0].y - mid_point.y) > 0.5 * filter_size_surf && fabs(points_near[0].z - mid_point.z) > 0.5 * filter_size_surf){
-                PointNoNeedDownsample.push_back(feats_down_world->points[i]);
-                continue;
-            }
-            for (int readd_i = 0; readd_i < NUM_MATCH_POINTS; readd_i ++)
-            {
-                if (points_near.size() < NUM_MATCH_POINTS) break;
-                if (calc_dist(points_near[readd_i], mid_point) < dist)
-                {
-                    need_add = false;
-                    break;
-                }
-            }
-            if (need_add) PointToAdd.push_back(feats_down_world->points[i]);
+            lidar_end_time = meas.lidar_beg_time + lidar_mean_scantime; // 기본 스캔 시간을 설정합니다.
+            ROS_WARN("Too few input point cloud!\n"); // 경고 메시지를 출력합니다.
+        }
+        else if (meas.lidar->points.back().curvature / double(1000) < 0.5 * lidar_mean_scantime) // 마지막 곡률이 평균 시간의 절반보다 작은 경우
+        {
+            lidar_end_time = meas.lidar_beg_time + lidar_mean_scantime; // 기본 스캔 시간을 설정합니다.
         }
         else
         {
-            PointToAdd.push_back(feats_down_world->points[i]);
+            scan_num++; // 스캔 횟수를 증가시킵니다.
+            lidar_end_time = meas.lidar_beg_time + meas.lidar->points.back().curvature / double(1000); // 종료 시간을 계산합니다.
+            lidar_mean_scantime += (meas.lidar->points.back().curvature / double(1000) - lidar_mean_scantime) / scan_num; // 평균 스캔 시간을 업데이트합니다.
+        }
+
+        meas.lidar_end_time = lidar_end_time; // 라이다 데이터의 종료 시간을 설정합니다.
+        publish_lidar_time = lidar_end_time; // 라이다 데이터의 최종 시간을 게시 시간으로 설정합니다.
+        lidar_pushed = true; // 라이다 데이터가 처리되었음을 표시합니다.
+    }
+
+    if (last_timestamp_imu < lidar_end_time) // IMU 데이터가 라이다 종료 시간보다 오래된 경우
+    {
+        return false; // 데이터를 처리하지 않고 반환합니다.
+    }
+
+    /*** push imu data, and pop from imu buffer ***/ // IMU 데이터를 추가하고 제거합니다.
+    double imu_time = imu_buffer.front()->header.stamp.toSec(); // 첫 번째 IMU 데이터의 타임스탬프를 가져옵니다.
+    meas.imu.clear(); // IMU 데이터를 초기화합니다.
+    while ((!imu_buffer.empty()) && (imu_time < lidar_end_time)) // 라이다 종료 시간 이전까지 IMU 데이터를 처리합니다.
+    {
+        imu_time = imu_buffer.front()->header.stamp.toSec(); // 현재 IMU 타임스탬프를 가져옵니다.
+        if (imu_time > lidar_end_time) break; // 종료 시간을 초과하면 중단합니다.
+        meas.imu.push_back(imu_buffer.front()); // IMU 데이터를 추가합니다.
+        imu_buffer.pop_front(); // 사용한 IMU 데이터를 제거합니다.
+    }
+
+    lidar_buffer.pop_front(); // 사용한 라이다 데이터를 제거합니다.
+    time_buffer.pop_front(); // 사용한 타임 데이터를 제거합니다.
+
+    lidar_pushed = false; // 라이다 데이터 처리 완료 상태를 초기화합니다.
+    return true; // 처리가 성공적으로 완료되었음을 반환합니다.
+}
+}
+
+void map_incremental() // 맵을 점진적으로 업데이트하는 함수
+{
+    PointVector PointToAdd; // 맵에 추가해야 할 포인트 벡터
+    PointVector PointNoNeedDownsample; // 다운샘플링이 필요하지 않은 포인트 벡터
+    PointToAdd.reserve(feats_down_size); // PointToAdd에 메모리를 미리 할당합니다.
+    PointNoNeedDownsample.reserve(feats_down_size); // PointNoNeedDownsample에 메모리를 미리 할당합니다.
+
+    for (int i = 0; i < feats_down_size; i++) // 다운샘플링된 모든 포인트를 순회합니다.
+    {
+        /* transform to world frame */ // 월드 프레임으로 변환
+        pointBodyToWorld(&(feats_down_body->points[i]), &(feats_down_world->points[i]));
+
+        /* decide if need add to map */ // 맵에 추가할 필요가 있는지 결정
+        if (!Nearest_Points[i].empty()) // 현재 포인트의 주변 포인트가 존재하는 경우
+        {
+            const PointVector &points_near = Nearest_Points[i]; // 주변 포인트 참조
+            bool need_add = true; // 맵에 추가해야 하는지 여부
+            BoxPointType Box_of_Point; // 박스 포인트 타입 변수
+            PointType downsample_result, mid_point; // 다운샘플링 결과와 중간점 변수 초기화
+            mid_point.x = floor(feats_down_world->points[i].x / filter_size_surf) * filter_size_surf + 0.5 * filter_size_surf; // x 좌표 필터링
+            mid_point.y = floor(feats_down_world->points[i].y / filter_size_surf) * filter_size_surf + 0.5 * filter_size_surf; // y 좌표 필터링
+            mid_point.z = floor(feats_down_world->points[i].z / filter_size_surf) * filter_size_surf + 0.5 * filter_size_surf; // z 좌표 필터링
+            float dist = calc_dist(feats_down_world->points[i], mid_point); // 현재 포인트와 중간점 간의 거리 계산
+
+            if (fabs(points_near[0].x - mid_point.x) > 0.5 * filter_size_surf &&
+                fabs(points_near[0].y - mid_point.y) > 0.5 * filter_size_surf &&
+                fabs(points_near[0].z - mid_point.z) > 0.5 * filter_size_surf)
+            {
+                // 주변 포인트가 중간점으로부터 너무 멀면
+                PointNoNeedDownsample.push_back(feats_down_world->points[i]); // 다운샘플링 없이 추가
+                continue; // 다음 포인트로 넘어감
+            }
+
+            for (int readd_i = 0; readd_i < NUM_MATCH_POINTS; readd_i++) // 주변 포인트와 비교
+            {
+                if (points_near.size() < NUM_MATCH_POINTS) break; // 매칭 포인트가 충분하지 않으면 종료
+                if (calc_dist(points_near[readd_i], mid_point) < dist) // 더 가까운 포인트가 존재하는 경우
+                {
+                    need_add = false; // 추가하지 않음
+                    break; // 루프 종료
+                }
+            }
+
+            if (need_add) PointToAdd.push_back(feats_down_world->points[i]); // 추가가 필요한 경우 벡터에 추가
+        }
+        else
+        {
+            PointToAdd.push_back(feats_down_world->points[i]); // 주변 포인트가 없는 경우 바로 추가
         }
     }
-    ikdtree.Add_Points(PointToAdd, true);
-    ikdtree.Add_Points(PointNoNeedDownsample, false); 
-    return;
+
+    ikdtree.Add_Points(PointToAdd, true); // 다운샘플링 후 포인트를 맵에 추가
+    ikdtree.Add_Points(PointNoNeedDownsample, false); // 다운샘플링이 필요 없는 포인트를 추가
+    return; // 함수 종료
 }
 
 void publish_frame_world(const ros::Publisher &pubLaserCloudFull, const ros::Publisher &pubLaserCloudFullTransFormed)
+// 월드 좌표계에서의 포인트 클라우드 데이터를 퍼블리시하는 함수
 {
-    if(scan_pub_en)
+    if (scan_pub_en) // 스캔 퍼블리시가 활성화된 경우에만 실행
     {
+        // 퍼블리시할 포인트 클라우드 데이터를 설정 (밀집 데이터 여부에 따라 선택)
         PointCloudXYZI::Ptr laserCloudFullRes(dense_pub_en ? feats_undistort : feats_down_body);
-        int size = laserCloudFullRes->points.size();
-        PointCloudXYZI::Ptr laserCloudWorld(new PointCloudXYZI(size, 1));
+        int size = laserCloudFullRes->points.size(); // 포인트 클라우드의 포인트 개수를 가져옵니다.
+        PointCloudXYZI::Ptr laserCloudWorld(new PointCloudXYZI(size, 1)); // 월드 프레임 포인트 클라우드를 초기화합니다.
 
-        for (int i = 0; i < size; i++)
+        for (int i = 0; i < size; i++) // 모든 포인트를 월드 프레임으로 변환
         {
-            RGBpointBodyToWorld(&laserCloudFullRes->points[i], \
-                                &laserCloudWorld->points[i]);
+            RGBpointBodyToWorld(&laserCloudFullRes->points[i], &laserCloudWorld->points[i]);
+            // 포인트를 바디 프레임에서 월드 프레임으로 변환
         }
 
-        sensor_msgs::PointCloud2 laserCloudmsg;
-        pcl::toROSMsg(*laserCloudWorld, laserCloudmsg);
-        laserCloudmsg.header.stamp = ros::Time().fromSec(publish_lidar_time);
-        laserCloudmsg.header.frame_id = map_frame;
-        pubLaserCloudFull.publish(laserCloudmsg);
+        sensor_msgs::PointCloud2 laserCloudmsg; // ROS 메시지 타입의 포인트 클라우드 변수 선언
+        pcl::toROSMsg(*laserCloudWorld, laserCloudmsg); // PCL 데이터를 ROS 메시지로 변환
+        laserCloudmsg.header.stamp = ros::Time().fromSec(publish_lidar_time); // 타임스탬프 설정
+        laserCloudmsg.header.frame_id = map_frame; // 프레임 ID 설정
+        pubLaserCloudFull.publish(laserCloudmsg); // 포인트 클라우드를 퍼블리시
         
-        if (publish_tf_results)
+        if (publish_tf_results) // 변환 결과를 퍼블리시해야 하는 경우
         {
-            PointCloudXYZI::Ptr laserCloudWorldTransFormed(new PointCloudXYZI(size, 1));
-            pcl::transformPointCloud(*laserCloudWorld, *laserCloudWorldTransFormed, LiDAR1_wrt_drone);
-            sensor_msgs::PointCloud2 laserCloudmsg2;
-            pcl::toROSMsg(*laserCloudWorldTransFormed, laserCloudmsg2);
-            laserCloudmsg2.header.stamp = ros::Time().fromSec(publish_lidar_time);
-            laserCloudmsg2.header.frame_id = map_frame;
-            pubLaserCloudFullTransFormed.publish(laserCloudmsg2);
+            PointCloudXYZI::Ptr laserCloudWorldTransFormed(new PointCloudXYZI(size, 1)); // 변환된 포인트 클라우드를 초기화
+            pcl::transformPointCloud(*laserCloudWorld, *laserCloudWorldTransFormed, LiDAR1_wrt_drone); 
+            // 포인트 클라우드를 드론 좌표계로 변환
+
+            sensor_msgs::PointCloud2 laserCloudmsg2; // 변환된 포인트 클라우드 메시지 선언
+            pcl::toROSMsg(*laserCloudWorldTransFormed, laserCloudmsg2); // 변환된 PCL 데이터를 ROS 메시지로 변환
+            laserCloudmsg2.header.stamp = ros::Time().fromSec(publish_lidar_time); // 타임스탬프 설정
+            laserCloudmsg2.header.frame_id = map_frame; // 프레임 ID 설정
+            pubLaserCloudFullTransFormed.publish(laserCloudmsg2); // 변환된 포인트 클라우드를 퍼블리시
         }
     }
-
-    /**************** save map ****************/
-    /* 1. make sure you have enough memories
-    /* 2. noted that pcd save will influence the real-time performences **/
-    if (pcd_save_en)
+    /**************** save map ****************/ // 맵 저장 관련 코드
+    /* 1. make sure you have enough memories */ // 충분한 메모리가 있는지 확인해야 합니다.
+    /* 2. noted that pcd save will influence the real-time performances **/ // PCD 저장은 실시간 성능에 영향을 미칠 수 있습니다.
+    
+    if (pcd_save_en) // PCD 저장이 활성화된 경우
     {
-        int size = feats_undistort->points.size();
-        PointCloudXYZI::Ptr laserCloudWorld( \
-                        new PointCloudXYZI(size, 1));
-
-        for (int i = 0; i < size; i++)
+        int size = feats_undistort->points.size(); // 왜곡 보정된 포인트 클라우드의 크기를 가져옵니다.
+        PointCloudXYZI::Ptr laserCloudWorld(new PointCloudXYZI(size, 1)); // 월드 좌표계 포인트 클라우드를 초기화합니다.
+    
+        for (int i = 0; i < size; i++) // 모든 포인트를 월드 좌표계로 변환합니다.
         {
-            RGBpointBodyToWorld(&feats_undistort->points[i], \
-                                &laserCloudWorld->points[i]);
+            RGBpointBodyToWorld(&feats_undistort->points[i], &laserCloudWorld->points[i]);
+            // 포인트를 바디 프레임에서 월드 프레임으로 변환
         }
-        *pcl_wait_save += *laserCloudWorld;
-
-        static int scan_wait_num = 0;
-        scan_wait_num ++;
-        if (pcl_wait_save->size() > 0 && pcd_save_interval > 0  && scan_wait_num >= pcd_save_interval)
+    
+        *pcl_wait_save += *laserCloudWorld; // 변환된 포인트 클라우드를 저장 대기 클라우드에 추가
+    
+        static int scan_wait_num = 0; // 대기 중인 스캔 횟수를 추적하는 정적 변수
+        scan_wait_num++; // 스캔 대기 횟수를 증가시킵니다.
+    
+        if (pcl_wait_save->size() > 0 && pcd_save_interval > 0 && scan_wait_num >= pcd_save_interval)
         {
-            pcd_index ++;
+            // 저장 대기 클라우드가 비어 있지 않고, 저장 간격 조건을 충족하며, 대기 횟수가 간격 이상인 경우
+            pcd_index++; // 저장할 파일의 인덱스를 증가시킵니다.
             string all_points_dir(string(string(ROOT_DIR) + "PCD/scans_") + to_string(pcd_index) + string(".pcd"));
-            pcl::PCDWriter pcd_writer;
-            cout << "current scan saved to /PCD/" << all_points_dir << endl;
-            pcd_writer.writeBinary(all_points_dir, *pcl_wait_save);
-            pcl_wait_save->clear();
-            scan_wait_num = 0;
+            // 파일 경로를 생성합니다.
+            pcl::PCDWriter pcd_writer; // PCD 파일 작성기 객체 생성
+            cout << "current scan saved to /PCD/" << all_points_dir << endl; // 저장 경로를 출력합니다.
+            pcd_writer.writeBinary(all_points_dir, *pcl_wait_save); // PCD 파일을 바이너리 형식으로 저장합니다.
+            pcl_wait_save->clear(); // 저장 대기 클라우드를 초기화합니다.
+            scan_wait_num = 0; // 대기 중인 스캔 횟수를 초기화합니다.
         }
     }
-}
 
 bool sync_packages_bundle(MeasureGroup &meas)
 {
