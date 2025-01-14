@@ -880,6 +880,7 @@ bool sync_packages_bundle(MeasureGroup &meas)
                 ROS_WARN("Too few input point cloud!\n");
             }
             else if (meas.lidar->points.back().curvature / double(1000) < 0.5 * lidar_mean_scantime)
+                // 여기서 궁금한 거는 왜 curvature를 시간과 연관시켜서 하는지. 허허 
             {
                 lidar_end_time = meas.lidar_beg_time + lidar_mean_scantime;  // LiDAR 종료 시간 설정
             }
