@@ -361,6 +361,7 @@ void imu_cbk(const sensor_msgs::Imu::ConstPtr &msg_in)
     imu_buffer.push_back(msg);  // IMU 데이터를 버퍼에 추가
     mtx_buffer.unlock();  // 락 해제
     sig_buffer.notify_all();  // 조건 변수에 신호 보내기
+    //IMU 자체가 왜 이렇게 1개 밖에 없는지 이해가 안되긴함. 
 }
 
 bool sync_packages_async(MeasureGroup &meas)
